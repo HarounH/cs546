@@ -1,0 +1,31 @@
+Problem:
+  Redundancy in responses.
+
+  Source - is it from MLE on KL?
+    Anyway to fix this?
+
+  Document summarization paper ICLR 2017.
+    - added a switch to toggle between copying old stuff/
+
+  Unaligned corpuses for machine translation
+
+  NLP Style transfer (what is it, what are languages?)
+    https://arxiv.org/abs/1711.06861
+
+Semeval tasks:
+  http://alt.qcri.org/semeval2018/index.php?id=tasks
+
+  Irony https://competitions.codalab.org/competitions/17468
+  Emoji https://competitions.codalab.org/competitions/17344
+
+Dan Roth CS546 2016:
+  Mention detection: joint training of mention detection and coref
+  Multi-Sieve: I don't really understand. Does something by linking with wikipedia.
+  Event extraction:
+
+
+EMNLP:
+  http://aclweb.org/anthology/D/D17/D17-1019.pdf
+    https://github.com/karins/CoherenceFramework
+
+  [code][data] http://aclweb.org/anthology/D/D17/D17-1030.pdf
