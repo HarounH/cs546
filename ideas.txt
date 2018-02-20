@@ -29,3 +29,8 @@ EMNLP:
     https://github.com/karins/CoherenceFramework
 
   [code][data] http://aclweb.org/anthology/D/D17/D17-1030.pdf
+
+  [code][data][lua] http://aclweb.org/anthology/D/D17/D17-1062.pdf
+
+Pytorch based stuff:
+  https://github.com/ryh95/Pytorch-in-NLP-research
