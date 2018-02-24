@@ -23,4 +23,3 @@ for fold_idx in range(n_folds):
         url = github_prefix + dir_name + '/' + filename
         destination = dir_name + '/' + filename
         urllib.request.urlretrieve(url, destination)
-        # pdb.set_trace()
