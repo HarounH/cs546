@@ -1,0 +1,76 @@
+type: object
+properties:
+  train_path:
+    type: string
+  dev_path:
+    type: string
+  test_path:
+    type: string
+  out_dir_path:
+    type: string
+  prompt_id:
+    type: string
+  model_type:
+    type: string
+    enum:
+      - "regp"
+      - "reg"
+      - "breg"
+      - "bregp"
+  recurrent_unit:
+    type: string
+    enum:
+      - lstm
+      - gru
+      - simple
+  algorithm:
+    type: string
+    enum:
+      - rmsprop
+      - sgd
+      - adagrad
+      - adadelta
+      - adam
+      - adamax
+  loss:
+    type: string
+    enum:
+      - mse
+      - mae
+  emb_dim:
+    type: integer
+  cnn_dim:
+    type: integer
+  cnn_window_size:
+    type: integer
+  emb_dim:
+    type: integer
+  rnn_dim:
+    type: integer
+  batch_size:
+    type: integer
+  vocab_size:
+    type: integer
+  aggregation:
+    type: string
+    enum:
+      - mot
+      - attsum
+      - attmean
+  dropout_prob:
+    type: number
+  vocab_path:
+    type: string
+  skip_init_bias:
+    type: boolean
+  emb_path:
+    type: string
+  epochs:
+    type: integer
+  maxlen:
+    type: integer
+  seed:
+    type: integer
+    minimum: 1
+required: ["train_path", "dev_path", "test_path", "out_dir_path"]
+additionalProperties: false
