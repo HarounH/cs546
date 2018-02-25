@@ -6,17 +6,20 @@ import numpy as np
 import scipy
 from time import time
 import sys
-#import src.utils as utils
+import os
 import pickle as pk
 #from src.asap_evaluator import Evaluator
 #import src.asap_reader as dataset
 from jsonschema import validate
 import yaml
+import pathlib
+from pprint import pprint, pformat
 
 # To refactor
 #from keras.preprocessing import sequence
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def parse_arguments():
     """
@@ -39,27 +42,35 @@ def validate_params(config_file: str, schema_file: str) -> dict:
     validate(config_file, schema_file)
     return config_file
 
-def set_logger(directory: str) -> None:
-
+def configure_logger(output_directory: str) -> None:
+    """
+        Configures the logger and their format
+    """
+    global logger
+    pathlib.Path(output_directory).mkdir(parents=True, exist_ok=True) 
+    file_format = '[%(levelname)s] (%(name)s) %(message)s'
+    log_filename = os.path.splitext(os.path.basename(__file__))[0]
+    log_file = logging.FileHandler(os.path.join(output_directory, 
+        '{}_log.txt'.format(log_filename)), mode='w')
+    log_file.setLevel(logging.DEBUG)
+    log_file.setFormatter(logging.Formatter(file_format))
+    logger.addHandler(log_file)
 
 def main() -> None:
+    """
+    """
     args = parse_arguments()
     configs = validate_params(args.config_file, args.schema_file)
 
-    np.random.seed(config['seed'])
-    print(configs)
+    np.random.seed(configs['seed'])
+    configure_logger(configs['out_dir_path'])
+    logger.debug(pformat(configs))
 
 if __name__ == '__main__':
     main()
 
 
 """
-
-out_dir = args.out_dir_path
-
-utils.mkdir_p(out_dir + '/preds')
-utils.set_logger(out_dir)
-utils.print_args(args)
 
 ###############################################################################################################################
 ## Prepare data

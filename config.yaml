@@ -1,7 +1,7 @@
 train_path: "" # help="str The path to the training set"
 dev_path: "" # help="str The path to the development set"
 test_path: "" # help="str The path to the test set"
-out_dir_path: "" # help="str The path to the output directory"
+out_dir_path: "output/" # help="str The path to the output directory"
 prompt_id: "" # help="int Promp ID for ASAP dataset. '0' means all prompts."
 model_type: "regp" # help="str Model type (reg|regp|breg|bregp) (default=regp)"
 recurrent_unit: "lstm" # help="str Recurrent unit type (lstm|gru|simple) (default=lstm)"

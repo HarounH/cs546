@@ -47,6 +47,7 @@ properties:
     type: integer
   rnn_dim:
     type: integer
+    minimum: 1
   batch_size:
     type: integer
   vocab_size:
@@ -72,5 +73,4 @@ properties:
   seed:
     type: integer
     minimum: 1
-required: ["train_path", "dev_path", "test_path", "out_dir_path"]
 additionalProperties: false
