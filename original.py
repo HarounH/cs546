@@ -77,9 +77,11 @@ def pad_sequences(vectorized_seqs, value=0.0, maxlen=None):
     # dump padding everywhere, and place seqs on the left.
     # NOTE: you only need a tensor as big as your longest sequence
     seq_tensor = Variable(torch.zeros((len(vectorized_seqs), maxlen)), requires_grad=False).long()
+    tensor_masque = Variable(torch.zeros((len(vectorized_seqs), maxlen)), requires_grad=False).long()
     for idx, (seq, seqlen) in enumerate(zip(vectorized_seqs, seq_lengths)):
         maxi = min(seqlen,maxlen)
         seq_tensor[idx, :maxi] = torch.LongTensor(seq[:maxi])
+        tensor_masque[idx, :maxi] = torch.ones((maxi,))
 
     # SORT YOUR TENSORS BY LENGTH!
     seq_lengths, perm_idx = seq_lengths.sort(0, descending=True)
@@ -87,7 +89,7 @@ def pad_sequences(vectorized_seqs, value=0.0, maxlen=None):
 
     seq_tensor = seq_tensor.transpose(0,1)
 
-    return seq_tensor, seq_lengths
+    return seq_tensor, seq_lengths, tensor_masque
 
 # data_x is a list of lists
 (train_x, train_y, train_pmt), (dev_x, dev_y, dev_pmt), (test_x, test_y, test_pmt), vocab, vocab_size, overal_maxlen, num_outputs = dataset.get_data(
@@ -134,10 +136,6 @@ test_mean = test_y.mean(axis=0)
 test_std = test_y.std(axis=0)
 
 logger.info('Statistics:')
-
-# logger.info('  train_x shape: ' + str(np.array(train_x).shape))
-# logger.info('  dev_x shape:   ' + str(np.array(dev_x).shape))
-# logger.info('  test_x shape:  ' + str(np.array(test_x).shape))
 
 logger.info('  train_y shape: ' + str(train_y.shape))
 logger.info('  dev_y shape:   ' + str(dev_y.shape))
@@ -204,39 +202,48 @@ test_pmt = from_numpy(test_pmt)
 
 def train(model, optimizer):
     model.train()
+    clipnorm = 10
     data, target = train_x_tuple, train_y
-    model.zero_grad()
     output = model(*data)
     optimizer.zero_grad()
     loss_value = loss(output, target)
-    loss_value.backward()
-    optimizer.step()
+    #loss_value.backward()
+    #torch.nn.utils.clip_grad_norm(model.parameters(), clipnorm)
+    #optimizer.step()
     return loss_value
 
+import time
+
+class Timer:    
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.clock()
+        self.interval = self.end - self.start
+
+    def __add__(self, x):
+        return self.interval + x
 
 for ii in range(args.epochs):
-    # TODO: Gradient clipping has to be done here instead of the optimizer
+    clipvalue = 0
 
     # Training
-    t0 = time()
-    calc_loss = train(model, optimizer)
-    tr_time = time() - t0
+    with Timer() as tr_time:
+        calc_loss = train(model, optimizer)
     total_train_time += tr_time
 
     # Evaluate
-    t0 = time()
+    with Timer() as evl_time:
+        pass
     #evl.evaluate(model, ii)
-    evl_time = time() - t0
     total_eval_time += evl_time
 
     # Print information
     logger.info('Epoch %d, train: %is, evaluation: %is' % (ii, tr_time, evl_time))
     logger.info('[Train] loss: %.4f' % (calc_loss,))
     #evl.print_info()
-
-###############################################################################################################################
-## Summary of the results
-#
 
 logger.info('Training:   %i seconds in total' % total_train_time)
 logger.info('Evaluation: %i seconds in total' % total_eval_time)

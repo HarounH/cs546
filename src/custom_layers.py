@@ -3,6 +3,7 @@ import sys
 import torch
 from torch.autograd import Variable
 from torch.nn.functional import softmax
+import functools
 
 class Attention(torch.nn.Module):
     def __init__(self, input_size, op='attsum', activation='tanh', init_stdev=0.01):
@@ -12,6 +13,7 @@ class Attention(torch.nn.Module):
         self.op = op
         self.activation = activation
         self.init_stdev = init_stdev
+        self.input_size = input_size
         self.att_v = Variable(torch.randn(input_size).mul(self.init_stdev), 
             requires_grad=True)
         self.att_W = Variable(torch.randn(input_size, input_size).mul(self.init_stdev), 
@@ -19,9 +21,11 @@ class Attention(torch.nn.Module):
 
     def tensordot(self, x, y):
         """
-        The last dimension of x and the first dimension of y have to match
+        x.size()[-1] == y.size()[0]
+        len(x.size()) > 1
+        len(y.size()) > 1
         """
-        mul = lambda lis: reduce(lambda x, y: x*y, lis, 1)
+        mul = lambda lis: functools.reduce(lambda x, y: x*y, lis, 1)
         x_shape = x.size()
         prev_dims = x_shape[:-1]
         concat_dim = x_shape[-1]
@@ -29,24 +33,20 @@ class Attention(torch.nn.Module):
         concat_dim_y = y_shape[0]
         after_dims = y_shape[1:]
         assert concat_dim == concat_dim_y
-        return torch.mm(x.resize_(mul(prev_dims),concat_dim), 
-            y.resize_(concat_dim_y, mul(after_dims))).resize_(prev_dims+after_dims)
+        return (x.view(mul(prev_dims),concat_dim).mm(y)).view(prev_dims + after_dims)
     
     def forward(self, x, mask=None):
         y = self.tensordot(x, self.att_W)
         if self.activation == 'tanh':
             y = torch.tanh(y)
-        print(self.att_v)
-        print(y)
-        weights = self.tensordot(y, self.att_v)
-        print(weights)
-        weights = softmax(weights)
-        out = x * K.permute_dimensions(K.repeat(weights, x.shape[2]), [0, 2, 1])
-
-        if self.op == 'attsum':
-            out = out.sum(axis=0)
-        elif self.op == 'attmean':
-            out = torch.addcdiv(torch.zeros(mask.size()), out.sum(dim=0), mask)
+        weights = self.tensordot(y, self.att_v.view((self.input_size, 1)))
+        weights = softmax(weights, dim=2)
+        repeated = torch.cat([weights] * self.input_size, dim=2)
+        out = x * repeated
+        out = out.sum(dim=0) # no need to incoporate the mas because 0 is the padding
+        if self.op == 'attmean':
+            adjusted_mask = torch.cat([mask.view(mask.size()[0], 1)] * x.shape[-1], dim=0).float()
+            out = out / Variable(adjusted_mask, requires_grad=False)
         return out.float()
 
 class MeanOverTime(torch.nn.Module):
@@ -54,10 +54,22 @@ class MeanOverTime(torch.nn.Module):
         super(MeanOverTime, self).__init__()
 
     def forward(self, x, mask=None):
-        if mask != None:
-            return torch.addcdiv(torch.zeros(mask.size()), x.sum(dim=0), mask)
+        if isinstance(mask, torch.LongTensor):
+            adjusted_mask = torch.cat([mask.view(mask.size()[0], 1)] * x.shape[-1], dim=1).float()
+            return x.sum(dim=0) / Variable(adjusted_mask, requires_grad=False)
         else:
             return x.mean(dim=0)
+
+class Conv1DWithMasking(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(Conv1DWithMasking, self).__init__()
+        self.model = torch.nn.Conv1d(*args, **kwargs)
+    
+    def forward(self, x, mask=None):
+        x = self.model(x)
+        if isinstance(mask, torch.LongTensor):
+            x = x * mask
+        return x
 
 """
 class Attention(Layer):

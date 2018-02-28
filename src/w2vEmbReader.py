@@ -4,7 +4,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-class W2VEmbReader:
+class W2VEmbReader(object):
+	"""
+	
+	"""
 	def __init__(self, emb_path, emb_dim=None):
 		logger.info('Loading embeddings from: ' + emb_path)
 		has_header=False
@@ -67,12 +70,8 @@ class W2VEmbReader:
 			if embedding:
 				ret.append(self.embeddings[word])
 		logger.info('%i/%i word vectors initialized (hit rate: %.2f%%)' % 
-			(len(embedding), len(vocab), (100.0*len(embedding))/len(vocab)))
+			(len(embedding), len(vocab), (100.0 * len(embedding)) / len(vocab)))
 		return np.array(ret)
 	
 	def get_emb_dim(self):
 		return self.emb_dim
-	
-	
-	
-	
