@@ -22,8 +22,8 @@ def tokenize(string: str) -> List[str]:
         ret.append(token)
     return ret
 
-def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text, 
-        to_lower=None, score_index=6):
+def read_dataset(file_path: str, prompt_id: int, maxlen: int, vocab, tokenize_text: bool, 
+        to_lower=True :bool, score_index=6 :int) -> pd.Dataframe:
 
     logger.info('Reading dataset from: {}'.format(file_path))
     if maxlen > 0:
@@ -32,36 +32,52 @@ def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text,
     num_hit, unk_hit, total = 0., 0., 0.
     maxlen_x = -1
 
-    dataset = pd.read_csv(file_path, sep="\t", encoding="UTF-8", header=0)
+    # Header is first
+    dataset = pd.read_csv(file_path, delimiter="\t", encoding="UTF-8", header=0) # np.loadtxt(file_path, delimiter="\t", encoding="UTF-8", skiprows=0)
+    mask = dataset['essay_set'] == prompt_id
+    # Select all elements if prompt_id <= 0
+    if prompt_id <= 0:
+        mask = dataset['essay_id'] == dataset['essay_id']
 
-    with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
-        input_file.next()
-        for line in input_file:
-            if essay_set == prompt_id or prompt_id <= 0:
-                if to_lower:
-                    content = content.lower()
+    subset = dataset[mask]
+    if to_lower:
+        subset['content'] = subset['content'].str.lower()
+    elif tokenize_text:
+        subset['content'] = subset['content'].apply(tokenize)
+    else:
+        subset['content'] = subset['content'].str.split()
+
+
+    dataset[mask] = subset
+
+    if maxlen < 0:
+        maxlen = 9223372036854775807
+
+    subset_mask = subset['content'].apply(lambda x: len(x) <= maxlen)
+    
+
+
+    for line in input_file:
+        if essay_set == prompt_id or prompt_id <= 0:
+
+
+            if maxlen > 0 and len(content) > maxlen:
+                continue
+            indices = []
+            for word in content:
+                if is_number(word):
+                    indices.append(vocab['<num>'])
+                    num_hit += 1
+                elif word in vocab:
+                    indices.append(vocab[word])
                 else:
-                    if tokenize_text:
-                        content = tokenize(content)
-                    else:
-                        content = content.split()
-                if maxlen > 0 and len(content) > maxlen:
-                    continue
-                indices = []
-                for word in content:
-                    if is_number(word):
-                        indices.append(vocab['<num>'])
-                        num_hit += 1
-                    elif word in vocab:
-                        indices.append(vocab[word])
-                    else:
-                        indices.append(vocab['<unk>'])
-                        unk_hit += 1
-                    total += 1
-                data_x.append(indices)
-                data_y.append(score)
-                prompt_ids.append(essay_set)
-                if maxlen_x < len(indices):
-                    maxlen_x = len(indices)
+                    indices.append(vocab['<unk>'])
+                    unk_hit += 1
+                total += 1
+            data_x.append(indices)
+            data_y.append(score)
+            prompt_ids.append(essay_set)
+            if maxlen_x < len(indices):
+                maxlen_x = len(indices)
     logger.info('<num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
-    return data_x, data_y, prompt_ids, maxlen_x
+    return dataset
