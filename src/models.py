@@ -4,6 +4,7 @@ import torch
 from torch.nn import Embedding
 from collections import OrderedDict
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from .custom_layers import Attention, MeanOverTime
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +21,13 @@ class UnidirectionalRegression(torch.nn.Module):
             bias_value: float, aggregation: str):
         """
         """
+        # TODO: Initialize the embeddings
         super(UnidirectionalRegression, self).__init__()
 
         self.embed = Embedding(vocab_size, embed_dim)
         current_out_dim = embed_dim
         if cnn_dim > 0:
+            # We may need to mess with this layer to get the masking right
             self.conv_layer = torch.nn.Conv1d(current_out_dim,        # Input Dimension
                         cnn_dim,                # Output Dimension
                         stride=cnn_window_size) # TODO: subsample_length=1 Convert this
@@ -43,17 +46,14 @@ class UnidirectionalRegression(torch.nn.Module):
 
         layers = []
         if dropout_prob > 0:
-            drop_layer = torch.nn.Dropout(p=dropout_prob)
-            layers.append(('drop_layer', drop_layer))
+            self.drop_layer = torch.nn.Dropout(p=dropout_prob)
 
         self.pooling = pooling
         if pooling:
             if aggregation == 'mot':
-                pass
-                # layers.append(MeanOverTime(mask_zero=True))
+                self.agg = MeanOverTime()
             elif aggregation.startswith('att'):
-                pass
-                # layers.append(Attention(op=aggregation, activation='tanh', init_stdev=0.01))
+                self.agg = Attention(current_out_dim, op=aggregation, activation='tanh', init_stdev=0.01)
 
         ll = torch.nn.Linear(current_out_dim, num_outputs)
         if not skip_init_bias:
@@ -63,22 +63,30 @@ class UnidirectionalRegression(torch.nn.Module):
         self.model = torch.nn.Sequential(OrderedDict(layers))
         self.embed_index = 0
 
-    def forward(self, x, mask: ):
+    def forward(self, x, mask):
         """
         """
         out = self.embed(x).float()
         if hasattr(self, 'conv_layer'):
             out = self.conv_layer(out)
         if hasattr(self, 'rnn_layer'):
-            packed_input = pack_padded_sequence(out, mask.cpu().numpy())
+            mask = mask.cpu().numpy()
+            packed_input = pack_padded_sequence(out, mask)
             packed_output, _ = self.rnn_layer(packed_input)
             out, _ = pad_packed_sequence(packed_output)
             if self.pooling:
                 # Train with dropout over time
+                if hasattr(self, 'dropout'):
+                    out = self.dropout(out)
+                print(out)
+                out = self.agg(out, mask=mask)
+                print(out)
                 # Aggregate with MeanOverTime or Attention
                 # Feed to LinearLayer
             else:
                 out = out[-1, :, :].float()
+                if hasattr(self, 'dropout'):
+                    out = self.dropout(out)
 
         return self.model(out)
 
