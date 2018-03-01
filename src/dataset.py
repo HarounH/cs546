@@ -1,0 +1,211 @@
+'''
+    This file implements the a dataset class for ASAP data.
+    Instances of the class are then fed into dataloaders
+    The dataloaders are used to train/test etc models.
+'''
+
+__author__ = 'Haroun'
+__mail__ = 'haroun7@gmail.com'
+
+# general imports
+import argparse
+import pickle
+import os
+import sys
+import pdb
+import numpy as np
+import logging
+import nltk
+import re
+# pytorch imports
+import torch
+import torch.utils.data
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.autograd import Variable
+from torch.distributions import Bernoulli
+
+
+logger = logging.getLogger(__name__)
+num_regex = re.compile('^[+-]?[0-9]+\.?[0-9]*$')
+ref_scores_dtype = 'int32'
+ref_scores_dtype = 'int32'
+if sys.platform in ['win32']:
+    print('Detected windows OS')
+    tsv_encoding = 'latin-1'
+    lineneding = '\n'
+else:
+    tsv_encoding = None
+    lineneding = '\n'
+
+
+def is_number(string):
+    # neater than regex really. stack is annoying but eh
+    try:
+        lol = float(string)
+        return True
+    except ValueError:
+        return False
+
+# unfortunately, torch.utils.data.Dataset isn't great for NLP
+# torchtext is overkill for this. I'm just gonna roll my own.
+class ASAPDataset: # (torch.utils.data.Dataset):
+    '''
+        Attributes:
+            tsv_file
+    '''
+    asap_ranges = {
+        0: (0, 60),
+        1: (2, 12),
+        2: (1, 6),
+        3: (0, 3),
+        4: (0, 3),
+        5: (0, 4),
+        6: (0, 4),
+        7: (0, 30),
+        8: (0, 60)
+    }
+
+    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None):
+        self.tsv_file = tsv_file
+        if vocab is None:
+            if read_vocab is True:
+                logging.info('Loading vocab from ' + vocab_file)
+                with open(vocab_file, 'rb') as f:
+                    self.vocab = pickle.load(f)
+            else:
+                logger.info('Loading vocab from ' + tsv_file)
+                self.vocab = self.create_vocab_from_tsv(tsv_file)
+                if vocab_file is not None:
+                    logging.info('Writing vocab to ' + vocab_file)
+                    with open(vocab_file, 'wb') as f:
+                        pickle.dump(f, self.vocab)
+        else:
+            self.vocab = vocab
+        self.ids, self.x, self.y, self.prompts, self.maxlen = \
+            self.read_tsv(tsv_file, self.vocab)
+        pdb.set_trace()
+
+    def __len__(self):
+        # Number of essays
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        return self.x[idx], self.y[idx], self.prompts[idx]
+
+    def tokenize(self, string):
+        tokens = nltk.word_tokenize(string)
+        for index, token in enumerate(tokens):
+            if token == '@' and (index+1) < len(tokens):
+                tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
+                tokens.pop(index)
+        return tokens
+
+    def create_vocab_from_tsv(self, tsv_file, vocab_size=-1, maxlen=-1, prompt_id=-1, to_lower=True, tokenize_not_split=True):
+        '''
+            Reads a tsv_file and constructs a vocabulary (dictionary)
+            from that.
+            Some indices are reserved.
+                0: <pad>
+                1: <unk>
+                2: <num>
+        '''
+        total_words, unique_words = 0, 0
+        word_freqs = {}
+        if maxlen > 0:
+            logger.warning('Removing essays with length > ' + str(maxlen))
+        with open(tsv_file, 'r', encoding=tsv_encoding) as f:
+            line_count = 0
+            for line in f:
+                line_count += 1
+                if line_count == 1:
+                    continue
+                line_toks = line.strip('\r\n').split('\t')
+                essay_set = int(line_toks[1])
+                content = line_toks[2]
+                # Do stuff only if for the given prompt
+                if essay_set == prompt_id or prompt_id <= 0:
+                    if to_lower:
+                        content = content.lower()
+                    if tokenize_not_split:
+                        content = self.tokenize(content)
+                    else:
+                        content = content.split()
+                    if maxlen > 0 and len(content) > maxlen:
+                        continue
+                    for word in content:
+                        try:
+                            word_freqs[word] += 1
+                        except KeyError:
+                            unique_words += 1
+                            word_freqs[word] = 1
+                        total_words += 1
+        logger.info('  %i total words, %i unique words' %
+                    (total_words, unique_words))
+        import operator
+        sorted_word_freqs = sorted(word_freqs.items(),
+                                   key=operator.itemgetter(1),
+                                   reverse=True)
+        if vocab_size <= 0:
+            # Choose vocab size automatically by removing all singletons
+            vocab_size = 0
+            for word, freq in sorted_word_freqs:
+                if freq > 1:
+                    vocab_size += 1
+        vocab = {'<pad>': 0, '<unk>': 1, '<num>': 2}
+        vcb_len = len(vocab)
+        index = vcb_len
+        for word, _ in sorted_word_freqs[:vocab_size - vcb_len]:
+            vocab[word] = index
+            index += 1
+        return vocab
+
+    def read_tsv(self, tsv_file, vocab, char_level=False, tokenize_not_split=True, to_lower=True, maxlen=-1, prompt_id=-1, score_index=6):
+        logging.info('Reading TSV file from ' + tsv_file)
+        if maxlen > 0:
+            logger.info('  Removing sequences with more than ' + str(maxlen) +
+                        ' words')
+        data_ids, data_x, data_y, prompt_ids = [], [], [], []
+        num_hit, unk_hit, total = 0., 0., 0.
+        maxlen_x = -1
+        with open(tsv_file, 'r', encoding=tsv_encoding) as f:
+            line_count = 0
+            for line in f:
+                line_count += 1
+                if line_count == 1:
+                    continue  # Skip for header line.
+                tokens = line.strip('\r\n').split('\t')
+                essay_id = int(tokens[0])
+                essay_set = int(tokens[1])
+                content = tokens[2]
+                score = float(tokens[score_index])
+                indices = []
+                if essay_set == prompt_id or prompt_id < 0:
+                    if to_lower:
+                        content = content.lower()
+                    if char_level:
+                        raise NotImplementedError  # TODO
+                    else:
+                        for word in content:
+                            if is_number(word):
+                                indices.append(vocab['<num>'])
+                                num_hit += 1
+                            elif word in vocab:
+                                indices.append(vocab[word])
+                            else:
+                                indices.append(vocab['<unk>'])
+                                unk_hit += 1
+                            total += 1
+                        data_ids.append(essay_id)
+                        data_x.append(indices)
+                        data_y.append(score)
+                        prompt_ids.append(essay_set)
+                        maxlen_x = max(maxlen_x, len(indices))
+        logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
+        return data_ids, data_x, data_y, prompt_ids, maxlen_x
+if __name__ == '__main__':
+    # This is for testing stuff
+    dataset_type = 'train'
+    for fold_idx in range(5):
+        train_data = ASAPDataset('../data/fold_%d/%s.tsv' % (fold_idx, dataset_type))
