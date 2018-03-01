@@ -4,31 +4,30 @@ import torch
 from torch.nn import Embedding
 from collections import OrderedDict
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from torch.autograd import Variable
 from .custom_layers import Attention, MeanOverTime, Conv1DWithMasking
 from .w2vEmbReader import W2VEmbReader as EmbReader
 
 logger = logging.getLogger(__name__)
 
 dropout_W = 0.5
-dropout_U = 0.1
 cnn_border_mode='same'
 
 class Regression(torch.nn.Module):
-
+    """
+    """
     def __init__(self, vocab_size: int,
-            embed_dim: int, cnn_dim: int, emb_path: str,
-            rnn_dim: int, pooling: bool, dropout_prob: float,
-            num_outputs: int, skip_init_bias: bool,
-            bias_value: float, aggregation: str, bidirectional: bool,
-            vocab, cnn_window_size: int):
+                 embed_dim: int, cnn_dim: int, emb_path: str,
+                 rnn_dim: int, pooling: bool, dropout_prob: float,
+                 num_outputs: int, skip_init_bias: bool,
+                 bias_value: float, aggregation: str, bidirectional: bool,
+                 vocab, cnn_window_size: int):
         """
         """
         super(Regression, self).__init__()
         self.embed = Embedding(vocab_size, embed_dim)
         if emb_path:
             logger.info('Initializing lookup table')
-            emb_reader = EmbReader(emb_path, emb_dim=emb_dim)
+            emb_reader = EmbReader(emb_path, emb_dim=embed_dim)
             self.embed.W.data = emb_reader.get_emb_matrix_given_vocab(vocab)
 
         current_out_dim = embed_dim
@@ -41,14 +40,13 @@ class Regression(torch.nn.Module):
             current_out_dim = cnn_dim
 
         if rnn_dim > 0:
-            self.rnn_layer = torch.nn.RNN(input_size=current_out_dim,
-                hidden_size=rnn_dim,
-                num_layers=1, #???
-                nonlinearity='tanh', #???
-                dropout=dropout_W, #???
-                bidirectional=bidirectional
-                )
-                #return_sequences=pooling)
+            self.rnn_layer = \
+                torch.nn.RNN(input_size=current_out_dim,
+                            hidden_size=rnn_dim,
+                            num_layers=1, #???
+                            nonlinearity='tanh', #???
+                            dropout=dropout_W, #???
+                            bidirectional=bidirectional)
             current_out_dim = rnn_dim
             if bidirectional:
                 current_out_dim *= 2
@@ -62,6 +60,8 @@ class Regression(torch.nn.Module):
                 self.agg = MeanOverTime()
             elif aggregation.startswith('att'):
                 self.agg = Attention(current_out_dim, op=aggregation, activation='tanh', init_stdev=0.01)
+            else:
+                raise NotImplementedError("{} not a valid aggregation scheme".format(aggregation))
 
         ll = torch.nn.Linear(current_out_dim, num_outputs)
         if not skip_init_bias:
@@ -94,8 +94,19 @@ class Regression(torch.nn.Module):
 
         return self.model(out)
 
-def create_model(args, num_outputs, initial_mean_value, overal_maxlen, vocab):
+
+def create_model(args, num_outputs, initial_mean_value, vocab):
+    """
+
+    :param args: Namespace
+    :param num_outputs:
+    :param initial_mean_value:
+    :param vocab:
+    :return:
+    """
+
     bias_value = (np.log(initial_mean_value) - np.log(1 - initial_mean_value))
+
     if args.model_type == 'reg':
         logger.info('Building a REGRESSION model')
         return Regression(args.vocab_size, args.emb_dim,
@@ -103,8 +114,7 @@ def create_model(args, num_outputs, initial_mean_value, overal_maxlen, vocab):
             args.rnn_dim, False, args.dropout_prob,
             num_outputs, args.skip_init_bias,
             bias_value, args.aggregation, False, vocab,
-            args.cnn_window_size
-        )
+            args.cnn_window_size)
     elif args.model_type == 'regp':
         logger.info('Building a REGRESSION model with POOLING')
         return Regression(args.vocab_size, args.emb_dim,
@@ -112,30 +122,7 @@ def create_model(args, num_outputs, initial_mean_value, overal_maxlen, vocab):
             args.rnn_dim, True, args.dropout_prob,
             num_outputs, args.skip_init_bias,
             bias_value, args.aggregation, False, vocab,
-            args.cnn_window_size
-        )
-        """
-        model = Sequential()
-        model.add(Embedding(args.vocab_size, args.emb_dim, mask_zero=True))
-        if args.cnn_dim > 0:
-            model.add(Conv1DWithMasking(nb_filter=args.cnn_dim, filter_length=args.cnn_window_size, border_mode=cnn_border_mode, subsample_length=1))
-        if args.rnn_dim > 0:
-            model.add(RNN(args.rnn_dim, return_sequences=True, dropout_W=dropout_W, dropout_U=dropout_U))
-        if args.dropout_prob > 0:
-            model.add(Dropout(args.dropout_prob))
-
-        if args.aggregation == 'mot':
-            model.add(MeanOverTime(mask_zero=True))
-        elif args.aggregation.startswith('att'):
-            model.add(Attention(op=args.aggregation, activation='tanh', init_stdev=0.01))
-
-        model.add(Dense(num_outputs))
-        if not args.skip_init_bias:
-            bias_value = (np.log(initial_mean_value) - np.log(1 - initial_mean_value)).astype(K.floatx())
-            model.layers[-1].b.set_value(bias_value)
-        model.add(Activation('sigmoid'))
-        model.emb_index = 0
-        """
+            args.cnn_window_size)
 
     elif args.model_type == 'breg':
         logger.info('Building a BIDIRECTIONAL REGRESSION model')
@@ -144,29 +131,7 @@ def create_model(args, num_outputs, initial_mean_value, overal_maxlen, vocab):
             args.rnn_dim, False, args.dropout_prob,
             num_outputs, args.skip_init_bias,
             bias_value, args.aggregation, True, vocab,
-            args.cnn_window_size
-        )
-        """
-        model = Sequential()
-        sequence = Input(shape=(overal_maxlen,), dtype='int32')
-        output = Embedding(args.vocab_size, args.emb_dim, mask_zero=True)(sequence)
-        if args.cnn_dim > 0:
-            output = Conv1DWithMasking(nb_filter=args.cnn_dim, filter_length=args.cnn_window_size, border_mode=cnn_border_mode, subsample_length=1)(output)
-        if args.rnn_dim > 0:
-            forwards = RNN(args.rnn_dim, return_sequences=False, dropout_W=dropout_W, dropout_U=dropout_U)(output)
-            backwards = RNN(args.rnn_dim, return_sequences=False, dropout_W=dropout_W, dropout_U=dropout_U, go_backwards=True)(output)
-        if args.dropout_prob > 0:
-            forwards = Dropout(args.dropout_prob)(forwards)
-            backwards = Dropout(args.dropout_prob)(backwards)
-        merged = merge([forwards, backwards], mode='concat', concat_axis=-1)
-        densed = Dense(num_outputs)(merged)
-        if not args.skip_init_bias:
-            raise NotImplementedError
-        score = Activation('sigmoid')(densed)
-        model = Model(input=sequence, output=score)
-        model.emb_index = 1
-        """
-
+            args.cnn_window_size)
     elif args.model_type == 'bregp':
         logger.info('Building a BIDIRECTIONAL REGRESSION model with POOLING')
         return Regression(args.vocab_size, args.emb_dim,
@@ -174,29 +139,5 @@ def create_model(args, num_outputs, initial_mean_value, overal_maxlen, vocab):
             args.rnn_dim, True, args.dropout_prob,
             num_outputs, args.skip_init_bias,
             bias_value, args.aggregation, True, vocab,
-            args.cnn_window_size
-        )
-        """
-        model = Sequential()
-        sequence = Input(shape=(overal_maxlen,), dtype='int32')
-        output = Embedding(args.vocab_size, args.emb_dim, mask_zero=True)(sequence)
-        if args.cnn_dim > 0:
-            output = Conv1DWithMasking(nb_filter=args.cnn_dim, filter_length=args.cnn_window_size, border_mode=cnn_border_mode, subsample_length=1)(output)
-        if args.rnn_dim > 0:
-            forwards = RNN(args.rnn_dim, return_sequences=True, dropout_W=dropout_W, dropout_U=dropout_U)(output)
-            backwards = RNN(args.rnn_dim, return_sequences=True, dropout_W=dropout_W, dropout_U=dropout_U, go_backwards=True)(output)
-        if args.dropout_prob > 0:
-            forwards = Dropout(args.dropout_prob)(forwards)
-            backwards = Dropout(args.dropout_prob)(backwards)
-        forwards_mean = MeanOverTime(mask_zero=True)(forwards)
-        backwards_mean = MeanOverTime(mask_zero=True)(backwards)
-        merged = merge([forwards_mean, backwards_mean], mode='concat', concat_axis=-1)
-        densed = Dense(num_outputs)(merged)
-        if not args.skip_init_bias:
-            raise NotImplementedError
-        score = Activation('sigmoid')(densed)
-        model = Model(input=sequence, output=score)
-        model.emb_index = 1
-        """
-
-    return model
+            args.cnn_window_size)
+    raise NotImplementedError('{} not implemented'.format(args.model_type))
