@@ -30,7 +30,6 @@ from torch.distributions import Bernoulli
 logger = logging.getLogger(__name__)
 num_regex = re.compile('^[+-]?[0-9]+\.?[0-9]*$')
 ref_scores_dtype = 'int32'
-ref_scores_dtype = 'int32'
 if sys.platform in ['win32']:
     print('Detected windows OS')
     tsv_encoding = 'latin-1'
@@ -48,9 +47,10 @@ def is_number(string):
     except ValueError:
         return False
 
+
 # unfortunately, torch.utils.data.Dataset isn't great for NLP
 # torchtext is overkill for this. I'm just gonna roll my own.
-class ASAPDataset: # (torch.utils.data.Dataset):
+class ASAPDataset:  # (torch.utils.data.Dataset):
     '''
         Attributes:
             tsv_file
@@ -67,7 +67,7 @@ class ASAPDataset: # (torch.utils.data.Dataset):
         8: (0, 60)
     }
 
-    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None):
+    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None, prompt_id=-1):
         self.tsv_file = tsv_file
         if vocab is None:
             if read_vocab is True:
@@ -80,12 +80,12 @@ class ASAPDataset: # (torch.utils.data.Dataset):
                 if vocab_file is not None:
                     logging.info('Writing vocab to ' + vocab_file)
                     with open(vocab_file, 'wb') as f:
-                        pickle.dump(f, self.vocab)
+                        pickle.dump(self.vocab, f)
         else:
             self.vocab = vocab
         self.ids, self.x, self.y, self.prompts, self.maxlen = \
-            self.read_tsv(tsv_file, self.vocab)
-        pdb.set_trace()
+            self.read_tsv(tsv_file, self.vocab, prompt_id=prompt_id)
+        # pdb.set_trace()
 
     def __len__(self):
         # Number of essays
@@ -204,8 +204,72 @@ class ASAPDataset: # (torch.utils.data.Dataset):
                         maxlen_x = max(maxlen_x, len(indices))
         logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
         return data_ids, data_x, data_y, prompt_ids, maxlen_x
+
+    def make_scores_model_friendly(self):
+        for i in range(len(self.y)):
+            low, high = self.asap_ranges[self.prompts[i]]
+            self.y[i] = (self.y[i] - low) / (high - low)
+
+    def make_scores_dataset_friendly(self):
+        for i in range(len(self.y)):
+            low, high = self.asap_ranges[self.prompts[i]]
+            self.y[i] = low + (high - low) * self.y[i]
+
+
+class ASAPDataLoader:
+    def __init__(self, dataset, maxlen, batch_size):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.maxlen = maxlen
+        self.len = len(dataset)
+        self.index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        lower = self.index
+        self.index += self.batch_size
+        higher = min(self.index, self.len)
+        xs, ys, prompts = self.dataset[lower:higher]
+        lens = []
+        batch_max_len = max([len(x) for x in xs])
+        for i in range(len(xs)):
+            # pdb.set_trace()
+            x = xs[i]
+            lens.append(len(x))
+            x = x + [0 for i in range(batch_max_len - len(x))]
+            xs[i] = x
+        mask = torch.FloatTensor(
+            [
+                [1]*lens[i] + [0]*(batch_max_len - lens[i])
+                for i in range(len(xs))
+                ]
+            )
+        sorter = np.flip(np.argsort(lens), axis=0).tolist()
+        mask = Variable(mask)
+        lens = Variable(torch.LongTensor(lens))
+        return torch.LongTensor(xs)[sorter],\
+            torch.FloatTensor(ys)[sorter],\
+            torch.LongTensor(prompts)[sorter],\
+            mask[sorter],\
+            lens[sorter]
+
+
 if __name__ == '__main__':
     # This is for testing stuff
     dataset_type = 'train'
-    for fold_idx in range(5):
-        train_data = ASAPDataset('../data/fold_%d/%s.tsv' % (fold_idx, dataset_type))
+    for fold_idx in range(1):
+        train_data = ASAPDataset('../data/fold_%d/%s.tsv' % (fold_idx, dataset_type), prompt_id=2)
+    # pdb.set_trace()
+    print('Loaded')
+    for epoch in range(3):
+        nbatches = 0
+        for (xs, ys, prompts) in ASAPDataLoader(train_data, train_data.maxlen, 20):
+            nbatches += 1
+            # pdb.set_trace()
+        print('Epoch ' + str(epoch) + ' has ' + str(nbatches) + ' batches')
+    print('Thing works')
+    for epoch in range(3):
+        for (xs, ys, prompts) in ASAPDataLoader(train_data, train_data.maxlen, 20):
+            pdb.set_trace()
