@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import os, sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 import argparse
 import logging
 import numpy as np
@@ -93,8 +96,6 @@ def parse_args():
                         help="Maximum allowed number of words during training. '0' means no limit (default=0)")
     parser.add_argument("--seed", dest="seed", type=int, metavar='<int>', default=1234,
                         help="Random seed (default=1234)")
-    parser.add_argument("--seed", dest="seed", type=int, metavar='<int>', default=1234,
-                        help="Random seed (default=1234)")
     args = parser.parse_args()
     assert args.loss in {'mse', 'mae'}
     assert args.recurrent_unit in {'lstm', 'gru', 'simple'}
@@ -130,7 +131,7 @@ def pad_sequences(vectorized_seqs, maxlen=None):
     return seq_tensor, seq_lengths, tensor_masque
 
 
-def train(model: torch.nn.Model, optimizer: torch.nn.Optimizer,
+def train(model: torch.nn.Module, optimizer: torch.optim.Optimizer,
           train_x_tuple, train_y, loss):
     model.train()
     clipvalue = 0
@@ -139,9 +140,9 @@ def train(model: torch.nn.Model, optimizer: torch.nn.Optimizer,
     output = model(*data)
     optimizer.zero_grad()
     loss_value = loss(output, target)
-    #loss_value.backward()
-    #torch.nn.utils.clip_grad_norm(model.parameters(), clipnorm)
-    #optimizer.step()
+    loss_value.backward()
+    torch.nn.utils.clip_grad_norm(model.parameters(), clipnorm)
+    optimizer.step()
     return loss_value
 
 

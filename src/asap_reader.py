@@ -198,7 +198,7 @@ def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text, to_lower, s
     return data_x, data_y, prompt_ids, max(len(i) for i in data_x)
 
 
-def get_data(paths, prompt_id, vocab_size, maxlen, tokenize_text=True, to_lower=True, vocab_path=None):
+def get_data(paths, prompt_id, vocab_size, maxlen, tokenize_text=True, to_lower=True, vocab_path=None, sort_by_len=False):
     train_path, dev_path, test_path = paths[0], paths[1], paths[2]
 
     if not vocab_path:

@@ -4,6 +4,7 @@ import errno
 import logging
 import re
 
+
 def set_logger(out_dir=None):
     console_format = BColors.OKBLUE + '[%(levelname)s]' + BColors.ENDC + ' (%(name)s) %(message)s'
     logger = logging.getLogger()
@@ -62,8 +63,12 @@ def bincounts(array):
     return counters, mfe_list
 
 
-# Convert all arguments to strings
 def ltos(*args):
+    """
+
+    :param args:
+    :return:
+    """
     outputs = []
     for arg in args:
         if type(arg) == list:
@@ -113,20 +118,26 @@ class BColors(object):
     def cleared(s):
         return re.sub("\033\[[0-9][0-9]?m", "", s)
 
+
 def red(message):
     return BColors.RED + str(message) + BColors.ENDC
+
 
 def b_red(message):
     return BColors.BRED + str(message) + BColors.ENDC
 
+
 def blue(message):
     return BColors.BLUE + str(message) + BColors.ENDC
+
 
 def b_yellow(message):
     return BColors.BYELLOW + str(message) + BColors.ENDC
 
+
 def green(message):
     return BColors.GREEN + str(message) + BColors.ENDC
+
 
 def b_green(message):
     return BColors.BGREEN + str(message) + BColors.ENDC
@@ -148,5 +159,4 @@ def print_args(args, path=None):
             output_file.write("  " + key + ": " + str(value) + "\n")
     if path:
         output_file.close()
-    del args.command
 

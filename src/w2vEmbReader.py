@@ -4,13 +4,14 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class W2VEmbReader(object):
     """
-
+        Reads word embeddings from a path and produces.
     """
     def __init__(self, emb_path, emb_dim=None):
         logger.info('Loading embeddings from: ' + emb_path)
-        has_header=False
+        has_header = False
         with codecs.open(emb_path, 'r', encoding='utf8') as emb_file:
             tokens = emb_file.next().split()
             if len(tokens) == 2:
