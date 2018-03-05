@@ -118,7 +118,7 @@ for epoch in range(args.epochs):
         youts = model(Variable(xs, requires_grad=False),
                       mask=padding_mask,
                       lens=lens)
-        # pdb.set_trace()
+        pdb.set_trace()
         loss = loss_fn(youts,
                        Variable(ys, requires_grad=False))
         # pdb.set_trace()
@@ -127,5 +127,8 @@ for epoch in range(args.epochs):
         loss.backward()
         torch.nn.utils.clip_grad_norm(optimizable_parameters, args.clip_norm)
         optimizer.step()
-        print('  loss=%f' % (loss.data[0]))
+        print('\tloss=%f' % (losses[-1]))
+        logger.info(
+            'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
+            )
     print('Epoch %d: average loss=%f' % (epoch, sum(losses) / len(losses)))
