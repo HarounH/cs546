@@ -249,11 +249,14 @@ class ASAPDataLoader:
                 ]
             )
         sorter = np.flip(np.argsort(lens), axis=0).tolist()
+        xs = Variable(torch.LongTensor(xs))
+        ys = Variable(torch.FloatTensor(ys))
+        prompts = Variable(torch.LongTensor(prompts))
         mask = Variable(mask)
         lens = Variable(torch.LongTensor(lens))
-        return torch.LongTensor(xs)[sorter],\
-            torch.FloatTensor(ys)[sorter],\
-            torch.LongTensor(prompts)[sorter],\
+        return xs[sorter],\
+            ys[sorter],\
+            prompts[sorter],\
             mask[sorter],\
             lens[sorter]
 

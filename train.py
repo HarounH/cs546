@@ -110,18 +110,17 @@ optimizer = U.get_optimizer(args, optimizable_parameters)
 
 for epoch in range(args.epochs):
     losses = []
-    batch_idx = 0
+    batch_idx = -1
     for xs, ys, ps, padding_mask, lens in ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size):
         print('Starting batch %d' % batch_idx)
         batch_idx += 1
         # pdb.set_trace()
-        youts = model(Variable(xs, requires_grad=False),
+        youts = model(xs,
                       mask=padding_mask,
                       lens=lens)
-        pdb.set_trace()
-        loss = loss_fn(youts,
-                       Variable(ys, requires_grad=False))
         # pdb.set_trace()
+        loss = 0
+        loss = loss_fn(youts, ys)
         losses.append(loss.data[0])
         optimizer.zero_grad()
         loss.backward()
