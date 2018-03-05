@@ -228,6 +228,8 @@ class ASAPDataLoader:
         return self
 
     def __next__(self):
+        if self.index >= self.len:
+            raise StopIteration
         lower = self.index
         self.index += self.batch_size
         higher = min(self.index, self.len)

@@ -33,7 +33,7 @@ parser.add_argument("-tu", "--tune", dest="dev_path", type=str, metavar='<str>',
 parser.add_argument("-ts", "--test", dest="test_path", type=str, metavar='<str>', required=True, help="The path to the test set")
 parser.add_argument("-o", "--out-dir", dest="out_dir_path", type=str, metavar='<str>', required=True, help="The path to the output directory")
 parser.add_argument("-p", "--prompt", dest="prompt_id", type=int, metavar='<int>', required=False, help="Promp ID for ASAP dataset. '0' means all prompts.")
-parser.add_argument("-t", "--type", dest="model_type", type=str, metavar='<str>', default='bregp', help="Model type (reg|regp|breg|bregp) (default=regp)")
+parser.add_argument("-t", "--type", dest="model_type", type=str, metavar='<str>', default='regp', help="Model type (reg|regp|breg|bregp) (default=regp)")
 parser.add_argument("-u", "--rec-unit", dest="recurrent_unit", type=str, metavar='<str>', default='lstm', help="Recurrent unit type (lstm|gru|simple) (default=lstm)")
 parser.add_argument("-a", "--algorithm", dest="algorithm", type=str, metavar='<str>', default='rmsprop', help="Optimization algorithm (rmsprop|sgd|adagrad|adadelta|adam|adamax) (default=rmsprop)")
 parser.add_argument("-l", "--loss", dest="loss", type=str, metavar='<str>', default='mse', help="Loss function (mse|mae) (default=mse)")
@@ -41,7 +41,7 @@ parser.add_argument("-e", "--embdim", dest="emb_dim", type=int, metavar='<int>',
 parser.add_argument("-c", "--cnndim", dest="cnn_dim", type=int, metavar='<int>', default=2, help="CNN output dimension. '0' means no CNN layer (default=0)")
 parser.add_argument("-w", "--cnnwin", dest="cnn_window_size", type=int, metavar='<int>', default=3, help="CNN window size. (default=3)")
 parser.add_argument("-r", "--rnndim", dest="rnn_dim", type=int, metavar='<int>', default=5, help="RNN dimension. '0' means no RNN layer (default=300)")
-parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=4, help="Batch size (default=32)")
+parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=32, help="Batch size (default=32)")
 parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=-1, help="Vocab size (default=4000)")
 parser.add_argument("--aggregation", dest="aggregation", type=str, metavar='<str>', default='mot', help="The aggregation method for regp and bregp types (mot|attsum|attmean) (default=mot)")
 parser.add_argument("--dropout", dest="dropout_prob", type=float, metavar='<float>', default=0.5, help="The dropout probability. To disable, give a negative number (default=0.5)")
@@ -51,6 +51,7 @@ parser.add_argument("--emb", dest="emb_path", type=str, metavar='<str>', help="T
 parser.add_argument("--epochs", dest="epochs", type=int, metavar='<int>', default=50, help="Number of epochs (default=50)")
 parser.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
 parser.add_argument("--seed", dest="seed", type=int, metavar='<int>', default=1234, help="Random seed (default=1234)")
+parser.add_argument("--clip_norm", dest="clip_norm", type=float, metavar='<float>', default=10.0, help="Threshold to clip gradients")
 args = parser.parse_args()
 
 out_dir = args.out_dir_path.strip('\r\n')
@@ -103,12 +104,16 @@ def mean0(ls):
 
 imv = mean0(train_dataset.y)
 model = Model(args, vocab, imv)
+optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
-optimizer = U.get_optimizer(args, model.parameters())
+optimizer = U.get_optimizer(args, optimizable_parameters)
 
 for epoch in range(args.epochs):
     losses = []
+    batch_idx = 0
     for xs, ys, ps, padding_mask, lens in ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size):
+        print('Starting batch %d' % batch_idx)
+        batch_idx += 1
         # pdb.set_trace()
         youts = model(Variable(xs, requires_grad=False),
                       mask=padding_mask,
@@ -120,6 +125,7 @@ for epoch in range(args.epochs):
         losses.append(loss.data[0])
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm(optimizable_parameters, args.clip_norm)
         optimizer.step()
         print('  loss=%f' % (loss.data[0]))
     print('Epoch %d: average loss=%f' % (epoch, sum(losses) / len(losses)))
