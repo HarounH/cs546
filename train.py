@@ -118,7 +118,7 @@ for epoch in range(args.epochs):
         youts = model(xs,
                       mask=padding_mask,
                       lens=lens)
-        pdb.set_trace()
+        # pdb.set_trace()
         loss = 0
         loss = loss_fn(youts, ys)
         losses.append(loss.data[0])
