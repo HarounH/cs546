@@ -35,7 +35,7 @@ if sys.platform in ['win32']:
     tsv_encoding = 'latin-1'
     lineneding = '\n'
 else:
-    tsv_encoding = None
+    tsv_encoding = 'latin-1'
     lineneding = '\n'
 
 

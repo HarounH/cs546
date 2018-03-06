@@ -70,6 +70,7 @@ class Model(torch.nn.Module):
             pooling = True
             bidirectional_rnn = True
         else:
+            pdb.set_trace()
             raise NotImplementedError
 
         dropout_W = 0.5		# default=0.5

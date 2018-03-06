@@ -112,8 +112,8 @@ for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
     for xs, ys, ps, padding_mask, lens in ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size):
-        print('Starting batch %d' % batch_idx)
         batch_idx += 1
+        print('Starting batch %d' % batch_idx)
         # pdb.set_trace()
         youts = model(xs,
                       mask=padding_mask,
