@@ -4,3 +4,5 @@
 */*/*.tsv
 output_dir/*a
 *output*
+data/*
+data*
