@@ -227,6 +227,7 @@ class ASAPDataset:
             logger.info('  Removing sequences with more than ' + str(maxlen) +
                         ' words')
         data_ids, data_x, data_y, prompt_ids, tags_x = [], [], [], [], []
+        unique_x = []
         num_hit, unk_hit, total = 0., 0., 0.
         maxlen_x = -1
         with open(tsv_file, 'r', encoding=tsv_encoding) as f:
@@ -266,11 +267,13 @@ class ASAPDataset:
                             total += 1
                         data_ids.append(essay_id)
                         data_x.append(indices)
+                        unique_x.append(len(set(indices)) / len(indices))
                         data_y.append(score)
                         prompt_ids.append(essay_set)
                         maxlen_x = max(maxlen_x, len(indices))
         logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
         self.tags_x = tags_x
+        self.unique_x = unique_x
         return data_ids, data_x, data_y, prompt_ids, maxlen_x
 
     def make_scores_model_friendly(self):

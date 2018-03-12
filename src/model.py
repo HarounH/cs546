@@ -130,6 +130,9 @@ class Model(torch.nn.Module):
             else:
                 raise NotImplementedError
             self.pooling_layer = layers[-1]
+
+        if args.variety:
+            current_dim += 1
         self.linear = nn.Linear(current_dim, num_outputs)
         layers.append(self.linear)
         if not args.skip_init_bias:
@@ -143,7 +146,7 @@ class Model(torch.nn.Module):
             layers[0].weight = emb_reader.get_emb_matrix_given_vocab(vocab, layers[0].weight)
             logger.info('  Done')
 
-    def forward(self, x, mask=None, lens=None, pos=None):
+    def forward(self, x, mask=None, lens=None, pos=None, variety=None):
         '''
             x: Variable, batch_size * max_seq_length
                 x is assumed to be padded.
@@ -157,18 +160,8 @@ class Model(torch.nn.Module):
         # Embedding
         current = self.embedding_layer(current.long())
 
-        def repad_array(a):
-            n = pos_dim()
-            b = np.zeros([len(a),n])
-            for i,j in enumerate(a):
-                b[i][0:len(j)] = j
-                # convert to one hot
-                to_conv = b[i]
-                shaped = np.zeros((pos_dim()))
-            return b
-
         if self.args.pos and not pos:
-            raise Exception()
+            raise Exception("Needs part of speech")
         elif self.args.pos:
             n = pos_dim()
             size, msl, emb_dim = current.size()
@@ -180,8 +173,7 @@ class Model(torch.nn.Module):
             current = torch.cat((current, var), dim=2)
 
 
-
-        # current: batch_size * max_seq_length * emb_dim
+        # current: batch_size * max_seq_length * ( emb_dim + word_features )
         # CNN
         if hasattr(self, 'cnn_layer'):
             current = self.cnn_layer(current, mask=mask)
@@ -203,6 +195,12 @@ class Model(torch.nn.Module):
         else:
             current = current[lens]
 
+        if self.args.variety and not variety:
+            raise Exception("Needs variety")
+        elif self.args.variety:
+            variety = np.array(variety)
+            part = torch.autograd.Variable(torch.unsqueeze(torch.from_numpy(variety), 1).float(), requires_grad=False)
+            current = torch.cat((current, part), dim=1)
         current = self.linear(current)
         current = self.sigmoid(current)
 
