@@ -28,6 +28,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 # User imports
 from .custom_layers import Conv1DWithMasking, MeanOverTime, Attention
 from .embedding_reader import EmbeddingReader
+from .dataset import pos_dim
 
 logger = logging.getLogger(__name__)
 if sys.platform in ['win32']:
@@ -47,6 +48,8 @@ class Model(torch.nn.Module):
         super(Model, self).__init__()
         self.args = args
         self.vocab = vocab
+        # self.variance = args.variance
+
         if args.recurrent_unit == 'lstm':
             chosen_RNN_class = nn.LSTM
         elif args.recurrent_unit == 'gru':
@@ -80,10 +83,12 @@ class Model(torch.nn.Module):
         init_bias_value = torch.log(imv) - torch.log(1 - imv)
         layers = []
         current_dim = args.vocab_size if args.vocab_size > 0 else len(vocab)
-
+        emb_dim = args.emb_dim
         layers.append(nn.Embedding(current_dim, args.emb_dim))
         self.embedding_layer = layers[-1]
         current_dim = args.emb_dim
+        if self.args.pos:
+            current_dim += pos_dim()
         if args.cnn_dim > 0:
             if args.cnn_window_size % 2 == 0:
                 logger.error('CNN Window size must be odd for\
@@ -138,51 +143,67 @@ class Model(torch.nn.Module):
             layers[0].weight = emb_reader.get_emb_matrix_given_vocab(vocab, layers[0].weight)
             logger.info('  Done')
 
-    def forward(self, x, mask=None, lens=None):
+    def forward(self, x, mask=None, lens=None, pos=None):
         '''
             x: Variable, batch_size * max_seq_length
                 x is assumed to be padded.
                 x should be a LongTensor
             mask: batch_size * max_seq_length
             lens: batch_size LongTensor, lengths of each sequence.
+            pos: list[list[int]], part of speech tag ints
         '''
-        # pdb.set_trace()
         batch_size, max_seq_length = x.size()[0], x.size()[1]
         current = x
         # Embedding
         current = self.embedding_layer(current.long())
-        # pdb.set_trace()
+
+        def repad_array(a):
+            n = pos_dim()
+            b = np.zeros([len(a),n])
+            for i,j in enumerate(a):
+                b[i][0:len(j)] = j
+                # convert to one hot
+                to_conv = b[i]
+                shaped = np.zeros((pos_dim()))
+            return b
+
+        if self.args.pos and not pos:
+            raise Exception()
+        elif self.args.pos:
+            n = pos_dim()
+            size, msl, emb_dim = current.size()
+            one_hot = np.zeros((size, msl, n))
+            for i, j in enumerate(pos):
+                for ind, elem in enumerate(j):
+                    one_hot[i][ind][elem] = 1
+            var = torch.autograd.Variable(torch.from_numpy(one_hot).float(), requires_grad=False)
+            current = torch.cat((current, var), dim=2)
+
+
+
         # current: batch_size * max_seq_length * emb_dim
         # CNN
         if hasattr(self, 'cnn_layer'):
             current = self.cnn_layer(current, mask=mask)
-        # pdb.set_trace()
         # RNN
         if hasattr(self, 'rnn_layer'):
             seq_lengths = lens.data.cpu().numpy()
-            # seq_lengths = mask.sum(dim=1).cpu().long().numpy()  # If only it took tensors
             current = pack_padded_sequence(current,
                                            seq_lengths,
                                            batch_first=True)
-            # h0 = Variable(torch.zeros(batch_size, self.args.rnn_dim))
-            # c0 = Variable(torch.zeros(batch_size, self.args.rnn_dim))
             current, _ = self.rnn_layer(current)  # (h0, c0)
-            # current = temp[0]
             current, seq_lengths = pad_packed_sequence(current,
                                                        batch_first=True)
-        # pdb.set_trace()
         # Dropout
         if hasattr(self, 'dropout_layer'):
             current = self.dropout_layer(current)
-        # pdb.set_trace()
         # Pooling
         if hasattr(self, 'pooling_layer'):
             current = self.pooling_layer(current, mask=mask, lens=lens, dim=1)
         else:
             current = current[lens]
-        # pdb.set_trace()
+
         current = self.linear(current)
-        # pdb.set_trace()
         current = self.sigmoid(current)
-        # pdb.set_trace()
+
         return current

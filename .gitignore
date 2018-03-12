@@ -1,4 +1,5 @@
 # data
+out/
 *.tsv
 
 # Byte-compiled / optimized / DLL files

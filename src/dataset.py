@@ -4,9 +4,6 @@
     The dataloaders are used to train/test etc models.
 '''
 
-__author__ = 'Haroun'
-__mail__ = 'haroun7@gmail.com'
-
 # general imports
 import argparse
 import pickle
@@ -17,6 +14,7 @@ import numpy as np
 import logging
 import nltk
 import re
+import operator
 # pytorch imports
 import torch
 import torch.utils.data
@@ -25,6 +23,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.distributions import Bernoulli
+from collections import defaultdict
+
 
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,52 @@ else:
     tsv_encoding = 'latin-1'
     lineneding = '\n'
 
+POS_DICT = defaultdict(lambda: 0)
+POS = [
+    "CC",
+    "CD",
+    "DT",
+    "EX",
+    "FW",
+    "IN",
+    "JJ",
+    "JJR",
+    "JJS",
+    "LS",
+    "MD",
+    "NN",
+    "NNP",
+    "NNPS",
+    "NNS",
+    "PDT",
+    "POS",
+    "PRP",
+    "PRP$",
+    "RB",
+    "RBR",
+    "RBS",
+    "RP",
+    "SYM",
+    "TO",
+    "UH",
+    "VB",
+    "VBD",
+    "VBG",
+    "VBN",
+    "VBP",
+    "VBZ",
+    "WDT",
+    "WP",
+    "WP$",
+    "WRB"
+]
+
+for i, pos in enumerate(POS):
+    POS_DICT[pos] = i
+
+def pos_dim():
+    return max(POS_DICT.values())+1
+
 
 def is_number(string):
     # neater than regex really. stack is annoying but eh
@@ -50,7 +96,7 @@ def is_number(string):
 
 # unfortunately, torch.utils.data.Dataset isn't great for NLP
 # torchtext is overkill for this. I'm just gonna roll my own.
-class ASAPDataset:  # (torch.utils.data.Dataset):
+class ASAPDataset:
     '''
         Attributes:
             tsv_file
@@ -67,7 +113,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         8: (0, 60)
     }
 
-    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None, prompt_id=-1):
+    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None, prompt_id=-1, pos=False):
         self.tsv_file = tsv_file
         if vocab is None:
             if read_vocab is True:
@@ -76,7 +122,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                     self.vocab = pickle.load(f)
             else:
                 logger.info('Loading vocab from ' + tsv_file)
-                self.vocab = self.create_vocab_from_tsv(tsv_file)
+                self.vocab = self.create_vocab_from_tsv(tsv_file, pos)
                 if vocab_file is not None:
                     logging.info('Writing vocab to ' + vocab_file)
                     with open(vocab_file, 'wb') as f:
@@ -84,8 +130,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         else:
             self.vocab = vocab
         self.ids, self.x, self.y, self.prompts, self.maxlen = \
-            self.read_tsv(tsv_file, self.vocab, prompt_id=prompt_id)
-        # pdb.set_trace()
+            self.read_tsv(tsv_file, self.vocab, prompt_id=prompt_id, pos=pos)
 
     def __len__(self):
         # Number of essays
@@ -94,15 +139,30 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.x[idx], self.y[idx], self.prompts[idx]
 
-    def tokenize(self, string):
-        tokens = nltk.word_tokenize(string)
-        for index, token in enumerate(tokens):
-            if token == '@' and (index+1) < len(tokens):
-                tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
-                tokens.pop(index)
-        return tokens
+    def tokenize(self, text, pos):
+        sentences = nltk.sent_tokenize(text)
+        ret = list()
+        part_of_speech = list()
+        for sentence in sentences:
+            tokens = nltk.word_tokenize(sentence)
+            if pos:
+                tagged = list(map(lambda x: x[-1], nltk.pos_tag(tokens)))
+            for index, token in enumerate(tokens):
+                if token == '@' and (index+1) < len(tokens):
+                    tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1][0])
+                    tokens.pop(index)
+                    if pos:
+                        tagged.pop(index)
 
-    def create_vocab_from_tsv(self, tsv_file, vocab_size=-1, maxlen=-1, prompt_id=-1, to_lower=True, tokenize_not_split=True):
+            ret.extend(tokens)
+            if pos:
+                part_of_speech.extend(tagged)
+        if pos:
+            return ret, part_of_speech
+        return ret
+
+    def create_vocab_from_tsv(self, tsv_file, vocab_size=-1, maxlen=-1,
+        prompt_id=-1, to_lower=True, tokenize_not_split=True):
         '''
             Reads a tsv_file and constructs a vocabulary (dictionary)
             from that.
@@ -129,7 +189,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                     if to_lower:
                         content = content.lower()
                     if tokenize_not_split:
-                        content = self.tokenize(content)
+                        content = self.tokenize(content, False)
                     else:
                         content = content.split()
                     if maxlen > 0 and len(content) > maxlen:
@@ -143,7 +203,6 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                         total_words += 1
         logger.info('  %i total words, %i unique words' %
                     (total_words, unique_words))
-        import operator
         sorted_word_freqs = sorted(word_freqs.items(),
                                    key=operator.itemgetter(1),
                                    reverse=True)
@@ -161,12 +220,13 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
             index += 1
         return vocab
 
-    def read_tsv(self, tsv_file, vocab, char_level=False, tokenize_not_split=True, to_lower=True, maxlen=-1, prompt_id=-1, score_index=6):
+    def read_tsv(self, tsv_file, vocab, char_level=False, tokenize_not_split=True, 
+        to_lower=True, maxlen=-1, prompt_id=-1, score_index=6, pos=False):
         logging.info('Reading TSV file from ' + tsv_file)
         if maxlen > 0:
             logger.info('  Removing sequences with more than ' + str(maxlen) +
                         ' words')
-        data_ids, data_x, data_y, prompt_ids = [], [], [], []
+        data_ids, data_x, data_y, prompt_ids, tags_x = [], [], [], [], []
         num_hit, unk_hit, total = 0., 0., 0.
         maxlen_x = -1
         with open(tsv_file, 'r', encoding=tsv_encoding) as f:
@@ -187,6 +247,13 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                     if char_level:
                         raise NotImplementedError  # TODO
                     else:
+                        data = self.tokenize(content, pos)
+                        if pos:
+                            content, tags = data
+                            tag_encoded = [POS_DICT[i] for i in tags]
+                            tags_x.append(tag_encoded)
+                        else:
+                            content = data
                         for word in content:
                             if is_number(word):
                                 indices.append(vocab['<num>'])
@@ -203,6 +270,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                         prompt_ids.append(essay_set)
                         maxlen_x = max(maxlen_x, len(indices))
         logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
+        self.tags_x = tags_x
         return data_ids, data_x, data_y, prompt_ids, maxlen_x
 
     def make_scores_model_friendly(self):
@@ -237,7 +305,6 @@ class ASAPDataLoader:
         lens = []
         batch_max_len = max([len(x) for x in xs])
         for i in range(len(xs)):
-            # pdb.set_trace()
             x = xs[i]
             lens.append(len(x))
             x = x + [0 for i in range(batch_max_len - len(x))]
@@ -258,7 +325,8 @@ class ASAPDataLoader:
             ys[sorter],\
             prompts[sorter],\
             mask[sorter],\
-            lens[sorter]
+            lens[sorter], \
+            (lower, higher)
 
 
 if __name__ == '__main__':
@@ -266,13 +334,11 @@ if __name__ == '__main__':
     dataset_type = 'train'
     for fold_idx in range(1):
         train_data = ASAPDataset('../data/fold_%d/%s.tsv' % (fold_idx, dataset_type), prompt_id=2)
-    # pdb.set_trace()
     print('Loaded')
     for epoch in range(3):
         nbatches = 0
         for (xs, ys, prompts) in ASAPDataLoader(train_data, train_data.maxlen, 20):
             nbatches += 1
-            # pdb.set_trace()
         print('Epoch ' + str(epoch) + ' has ' + str(nbatches) + ' batches')
     print('Thing works')
     for epoch in range(3):

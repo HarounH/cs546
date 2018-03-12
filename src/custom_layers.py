@@ -34,10 +34,7 @@ class Conv1DWithMasking(torch.nn.Module):
         self.bias = self.conv.bias
 
     def forward(self, x, mask=None):
-        # pdb.set_trace()
         # Shouldn't need because padding is 0
-        # mask_expanded = mask.unsqueeze(2).expand(*x.size())
-        # inp = (x * mask_expanded).expand([0, 2, 1])
         inp = x.permute([0, 2, 1])
         res = self.conv(inp)
         res = res.permute([0, 2, 1])
@@ -49,7 +46,6 @@ class MeanOverTime(torch.nn.Module):
         super(MeanOverTime, self).__init__()
 
     def forward(self, x, mask=None, lens=None, dim=1):
-        # pdb.set_trace()
         if lens is None:
             return x.mean(dim=dim)
         else:

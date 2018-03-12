@@ -43,6 +43,7 @@ parser.add_argument("-w", "--cnnwin", dest="cnn_window_size", type=int, metavar=
 parser.add_argument("-r", "--rnndim", dest="rnn_dim", type=int, metavar='<int>', default=5, help="RNN dimension. '0' means no RNN layer (default=300)")
 parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=32, help="Batch size (default=32)")
 parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=-1, help="Vocab size (default=4000)")
+parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
 parser.add_argument("--aggregation", dest="aggregation", type=str, metavar='<str>', default='mot', help="The aggregation method for regp and bregp types (mot|attsum|attmean) (default=mot)")
 parser.add_argument("--dropout", dest="dropout_prob", type=float, metavar='<float>', default=0.5, help="The dropout probability. To disable, give a negative number (default=0.5)")
 parser.add_argument("--vocab-path", dest="vocab_path", type=str, metavar='<str>', help="(Optional) The path to the existing vocab file (*.pkl)")
@@ -65,20 +66,19 @@ torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
 # train
-train_dataset = ASAPDataset(args.train_path, vocab_file=out_dir + '/vocab.pkl')
+train_dataset = ASAPDataset(args.train_path, vocab_file=out_dir + '/vocab.pkl', pos=args.pos)
 vocab = train_dataset.vocab
 train_dataset.make_scores_model_friendly()
 # test
-test_dataset = ASAPDataset(args.test_path, vocab=vocab)
+test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
 test_dataset.make_scores_model_friendly()
 # dev
-dev_dataset = ASAPDataset(args.dev_path, vocab=vocab)
+dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
 dev_dataset.make_scores_model_friendly()
 
 max_seq_length = max(train_dataset.maxlen,
                      test_dataset.maxlen,
                      dev_dataset.maxlen)
-
 
 def mean0(ls):
     if isinstance(ls[0], list):
@@ -111,14 +111,21 @@ optimizer = U.get_optimizer(args, optimizable_parameters)
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
-    for xs, ys, ps, padding_mask, lens in ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size):
+    loader = ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size)
+    for xs, ys, ps, padding_mask, lens, bounds in loader:
+        import pdb
+        pdb.set_trace()
+        if args.pos:
+            lhs, rhs = bounds
+            indexes = train_dataset.tags_x[lhs:rhs]
+        else:
+            indexes = None
         batch_idx += 1
         print('Starting batch %d' % batch_idx)
-        # pdb.set_trace()
         youts = model(xs,
                       mask=padding_mask,
-                      lens=lens)
-        # pdb.set_trace()
+                      lens=lens,
+                      pos=indexes)
         loss = 0
         loss = loss_fn(youts, ys)
         losses.append(loss.data[0])
