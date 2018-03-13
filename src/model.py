@@ -133,6 +133,10 @@ class Model(torch.nn.Module):
 
         if args.variety:
             current_dim += 1
+
+        if args.punct:
+            current_dim += 1
+
         self.linear = nn.Linear(current_dim, num_outputs)
         layers.append(self.linear)
         if not args.skip_init_bias:
@@ -146,7 +150,14 @@ class Model(torch.nn.Module):
             layers[0].weight = emb_reader.get_emb_matrix_given_vocab(vocab, layers[0].weight)
             logger.info('  Done')
 
-    def forward(self, x, mask=None, lens=None, pos=None, variety=None):
+    def _append_count(self, array, current):
+        array = np.array(array)
+        part = torch.autograd.Variable(torch.unsqueeze(torch.from_numpy(array), 1).float(), 
+            requires_grad=False)
+        current = torch.cat((current, part), dim=1)
+        return current
+
+    def forward(self, x, mask=None, lens=None, pos=None, variety=None, punct=None):
         '''
             x: Variable, batch_size * max_seq_length
                 x is assumed to be padded.
@@ -195,12 +206,12 @@ class Model(torch.nn.Module):
         else:
             current = current[lens]
 
-        if self.args.variety and not variety:
-            raise Exception("Needs variety")
-        elif self.args.variety:
-            variety = np.array(variety)
-            part = torch.autograd.Variable(torch.unsqueeze(torch.from_numpy(variety), 1).float(), requires_grad=False)
-            current = torch.cat((current, part), dim=1)
+        if self.args.variety:
+            current = self._append_count(variety, current)
+
+        if self.args.punct:
+            current = self._append_count(punct, current)
+
         current = self.linear(current)
         current = self.sigmoid(current)
 

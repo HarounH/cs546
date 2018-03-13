@@ -77,6 +77,7 @@ POS = [
     "WP$",
     "WRB"
 ]
+PUNCTS = '!?.,;'
 
 for i, pos in enumerate(POS):
     POS_DICT[pos] = i
@@ -129,6 +130,9 @@ class ASAPDataset:
                         pickle.dump(self.vocab, f)
         else:
             self.vocab = vocab
+        self.unique_x = []
+        self.tags_x = []
+        self.punct_x = []
         self.ids, self.x, self.y, self.prompts, self.maxlen = \
             self.read_tsv(tsv_file, self.vocab, prompt_id=prompt_id, pos=pos)
 
@@ -226,8 +230,7 @@ class ASAPDataset:
         if maxlen > 0:
             logger.info('  Removing sequences with more than ' + str(maxlen) +
                         ' words')
-        data_ids, data_x, data_y, prompt_ids, tags_x = [], [], [], [], []
-        unique_x = []
+        data_ids, data_x, data_y, prompt_ids = [], [], [], []
         num_hit, unk_hit, total = 0., 0., 0.
         maxlen_x = -1
         with open(tsv_file, 'r', encoding=tsv_encoding) as f:
@@ -252,7 +255,7 @@ class ASAPDataset:
                         if pos:
                             content, tags = data
                             tag_encoded = [POS_DICT[i] for i in tags]
-                            tags_x.append(tag_encoded)
+                            self.tags_x.append(tag_encoded)
                         else:
                             content = data
                         for word in content:
@@ -267,13 +270,15 @@ class ASAPDataset:
                             total += 1
                         data_ids.append(essay_id)
                         data_x.append(indices)
-                        unique_x.append(len(set(indices)) / len(indices))
+                        self.unique_x.append(len(set(indices)) / len(indices))
+                        self.punct_x.append(len([1 for i in content if i in PUNCTS]))
                         data_y.append(score)
                         prompt_ids.append(essay_set)
                         maxlen_x = max(maxlen_x, len(indices))
+        self.unique_x = np.array(self.unique_x)
+        self.tags_x = np.array(self.tags_x)
+        self.punct_x = np.array(self.punct_x)
         logger.info('  <num> hit rate: %.2f%%, <unk> hit rate: %.2f%%' % (100*num_hit/total, 100*unk_hit/total))
-        self.tags_x = tags_x
-        self.unique_x = unique_x
         return data_ids, data_x, data_y, prompt_ids, maxlen_x
 
     def make_scores_model_friendly(self):

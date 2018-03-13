@@ -45,6 +45,7 @@ parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='
 parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=-1, help="Vocab size (default=4000)")
 parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
 parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer")
+parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")
 parser.add_argument("--aggregation", dest="aggregation", type=str, metavar='<str>', default='mot', help="The aggregation method for regp and bregp types (mot|attsum|attmean) (default=mot)")
 parser.add_argument("--dropout", dest="dropout_prob", type=float, metavar='<float>', default=0.5, help="The dropout probability. To disable, give a negative number (default=0.5)")
 parser.add_argument("--vocab-path", dest="vocab_path", type=str, metavar='<str>', help="(Optional) The path to the existing vocab file (*.pkl)")
@@ -124,13 +125,19 @@ for epoch in range(args.epochs):
             variety = train_dataset.unique_x[lhs:rhs]
         else:
             variety = None
+
+        if args.punct:
+            punct = train_dataset.punct_x[lhs:rhs]
+        else:
+            punct = None
         batch_idx += 1
         print('Starting batch %d' % batch_idx)
         youts = model(xs,
                       mask=padding_mask,
                       lens=lens,
                       pos=indexes,
-                      variety=variety)
+                      variety=variety,
+                      punct=punct)
         loss = 0
         loss = loss_fn(youts, ys)
         losses.append(loss.data[0])
