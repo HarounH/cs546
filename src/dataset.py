@@ -178,7 +178,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                 tokens = line.strip('\r\n').split('\t')
                 essay_id = int(tokens[0])
                 essay_set = int(tokens[1])
-                content = tokens[2]
+                content = self.tokenize(tokens[2])
                 score = float(tokens[score_index])
                 indices = []
                 if essay_set == prompt_id or prompt_id < 0:
