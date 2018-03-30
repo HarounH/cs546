@@ -20,8 +20,11 @@ def quadratic_kappa(pred_theirs, pred_ours):
     for i, j in zip(their_int, ours_int):
         similar[i][j] += 1
 
+    # The matrix is going to be multiplied by a symmetric matrix so
+    # Outer product order doesn't really matter
     expected = np.outer(zero_pad(np.bincount(their_int), n), zero_pad(np.bincount(ours_int), n))
 
+    # Normalize so that the weight of similar is the same of expected
     expected = expected * (np.sum(similar)/ np.sum(expected))
 
     temp = np.tile(np.arange(n), (n, 1))
