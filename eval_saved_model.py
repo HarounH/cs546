@@ -7,23 +7,26 @@ from src.qwk import quadratic_kappa
 def main(args):
     if not hasattr(args, 'out_dir'):
         args.out_dir = "out/"
+    prompt = args.prompt
     model = torch.load(args.model, map_location=lambda storage, location: storage)
     model.cpu()
     # train
-    train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos)
+    train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt)
     vocab = train_dataset.vocab
     train_dataset.make_scores_model_friendly()
     # test
-    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
+    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt)
     test_dataset.make_scores_model_friendly()
     # dev
-    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
+    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt)
     dev_dataset.make_scores_model_friendly()
 
+    lhs, rhs = ASAPDataset.asap_ranges[args.prompt]
+    num_ratings = rhs - lhs + 1
     loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, 9999999999999)
     for xs, ys, ps, padding_mask, lens, bounds in loader:
         pred = model(xs, mask=padding_mask, lens=lens)
-        print("Quadratic kappa: {}".format(quadratic_kappa(pred, ys)))
+        print("Quadratic kappa: {}".format(quadratic_kappa(pred, ys, lhs, rhs)))
 
 if __name__ == '__main__':
     parse = argparse.ArgumentParser(description='Evaluates a saved model')
@@ -37,6 +40,7 @@ if __name__ == '__main__':
                     help='Path to the development ids')
     parse.add_argument('-p', '--pos', dest="pos", action="store_true",
                     help='Whether to use POS in the model (the model must be trained with pos)')
-
+    parse.add_argument('--prompt', dest="prompt", type=int, required=True,
+                    help='Prompt id')
     args = parse.parse_args()
     main(args)

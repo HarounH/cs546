@@ -68,14 +68,14 @@ torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
 # train
-train_dataset = ASAPDataset(args.train_path, vocab_file=out_dir + '/vocab.pkl', pos=args.pos)
+train_dataset = ASAPDataset(args.train_path, vocab_file=out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt_id)
 vocab = train_dataset.vocab
 train_dataset.make_scores_model_friendly()
 # test
-test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
+test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos,prompt_id=args.prompt_id)
 test_dataset.make_scores_model_friendly()
 # dev
-dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
+dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos,prompt_id=args.prompt_id)
 dev_dataset.make_scores_model_friendly()
 
 max_seq_length = max(train_dataset.maxlen,
