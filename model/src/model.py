@@ -149,8 +149,10 @@ class Model(torch.nn.Module):
 
     def _append_count(self, array, current):
         array = np.array(array)
-        part = torch.autograd.Variable(torch.unsqueeze(torch.from_numpy(array), 1).float().cuda()
-,requires_grad=False)
+        temp = torch.unsqueeze(torch.from_numpy(array), 1).float()
+        if self.args.cuda:
+            temp = temp.cuda()
+        part = torch.autograd.Variable(temp, requires_grad=False)
         current = torch.cat((current, part), dim=1)
         return current
 
