@@ -132,7 +132,7 @@ class Model(torch.nn.Module):
         if args.variety:
             current_dim += 1
 
-        if args.punct: 
+        if args.punct:
             current_dim += 1
         self.linear = nn.Linear(current_dim, num_outputs)
         layers.append(self.linear)
@@ -162,14 +162,17 @@ class Model(torch.nn.Module):
             mask: batch_size * max_seq_length
             lens: batch_size LongTensor, lengths of each sequence.
         '''
-        if mask is not None:
+        if mask is not None and self.args.cuda:
             mask = mask.cuda()
-        if lens is not None:
+        if lens is not None and self.args.cuda:
             lens = lens.cuda()
         batch_size, max_seq_length = x.size()[0], x.size()[1]
-        current = x
+        current = x.long()
         # Embedding
-        current = self.embedding_layer(current.long().cuda())
+        if self.args.cuda:
+            current = current.cuda()
+        # pdb.set_trace()
+        current = self.embedding_layer(current)
         # current: batch_size * max_seq_length * emb_dim
         if self.args.pos:
             n = pos_dim()
@@ -178,11 +181,17 @@ class Model(torch.nn.Module):
             for i, j in enumerate(pos):
                 for ind, elem in enumerate(j):
                     one_hot[i][ind][elem] = 1
-            var = torch.autograd.Variable(torch.from_numpy(one_hot).float().cuda(), pos=None, requires_grad=False)
+            ohe = torch.from_numpy(one_hot).float()
+            if self.args.cuda:
+                ohe = ohe.cuda()
+            var = torch.autograd.Variable(ohe, pos=None, requires_grad=False)
+            # var = pos  # TODO
             current = torch.cat((current, var), dim=2)
+        if self.args.cuda:
+            current = current.cuda()
         # CNN
         if hasattr(self, 'cnn_layer'):
-            current = self.cnn_layer(current.cuda(), mask=mask)
+            current = self.cnn_layer(current, mask=mask)
         # RNN
         if hasattr(self, 'rnn_layer'):
             seq_lengths = lens.data.cpu().numpy()
@@ -196,9 +205,11 @@ class Model(torch.nn.Module):
         # Dropout
         if hasattr(self, 'dropout_layer'):
             current = self.dropout_layer(current)
+        if self.args.cuda:
+            current = current.cuda()
         # Pooling
         if hasattr(self, 'pooling_layer'):
-            current = self.pooling_layer(current.cuda(), mask=mask, lens=lens, dim=1)
+            current = self.pooling_layer(current, mask=mask, lens=lens, dim=1)
         else:
             current = current[lens]
 
@@ -206,6 +217,8 @@ class Model(torch.nn.Module):
             current = self._append_count(variety, current)
         if self.args.punct:
             current = self._append_count(punct, current)
-        current = self.linear(current.cuda())
-        current = self.sigmoid(current.cuda())
+        if self.args.cuda:
+            current = current.cuda()
+        current = self.linear(current)
+        current = self.sigmoid(current)
         return current

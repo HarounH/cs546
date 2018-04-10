@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # parsing arguments
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--compressed_datasets', type=str, default='', help='pkl file to load dataset objects from')
 parser.add_argument("-tr", "--train", dest="train_path", type=str, metavar='<str>', required=True, help="The path to the training set")
 parser.add_argument("-tu", "--tune", dest="dev_path", type=str, metavar='<str>', required=True, help="The path to the development set")
 parser.add_argument("-ts", "--test", dest="test_path", type=str, metavar='<str>', required=True, help="The path to the test set")
@@ -53,9 +54,11 @@ parser.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', defaul
 parser.add_argument("--seed", dest="seed", type=int, metavar='<int>', default=1234, help="Random seed (default=1234)")
 parser.add_argument("--clip_norm", dest="clip_norm", type=float, metavar='<float>', default=10.0, help="Threshold to clip gradients")
 parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
-parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer") 
+parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer")
 parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")
+parser.add_argument('--cuda', dest='cuda', action='store_true', help='provide if you want to try using cuda')
 args = parser.parse_args()
+args.cuda = args.cuda and torch.cuda.is_available()
 
 out_dir = args.out_dir_path.strip('\r\n')
 U.mkdir_p(out_dir + '/preds')
@@ -63,24 +66,45 @@ U.mkdir_p(out_dir + '/preds')
 U.set_logger(out_dir)
 U.print_args(args)
 
+DEFAULT_COMPRESSED_DATASET = 'datasets-pickled.pkl'
+
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
-# train
-train_dataset = ASAPDataset(args.train_path, vocab_file=out_dir + '/vocab.pkl', pos=args.pos)
-vocab = train_dataset.vocab
-train_dataset.make_scores_model_friendly()
-# test
-test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
-test_dataset.make_scores_model_friendly()
-# dev
-dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
-dev_dataset.make_scores_model_friendly()
+if args.compressed_datasets == '':
+    # train
+    train_dataset = ASAPDataset(args.train_path, vocab_size=args.vocab_size, vocab_file=out_dir + '/vocab.pkl', pos=args.pos)
+    vocab = train_dataset.vocab
+    train_dataset.make_scores_model_friendly()
+    # test
+    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
+    test_dataset.make_scores_model_friendly()
+    # dev
+    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
+    dev_dataset.make_scores_model_friendly()
 
-max_seq_length = max(train_dataset.maxlen,
-                     test_dataset.maxlen,
-                     dev_dataset.maxlen)
+    max_seq_length = max(train_dataset.maxlen,
+                         test_dataset.maxlen,
+                         dev_dataset.maxlen)
+    # Dump it!
+    print('Dumping to', DEFAULT_COMPRESSED_DATASET)
+    with open(DEFAULT_COMPRESSED_DATASET, 'wb') as f:
+        stuff = {}
+        stuff['train'] = train_dataset
+        stuff['vocab'] = vocab
+        stuff['test'] = test_dataset
+        stuff['dev'] = dev_dataset
+        stuff['msl'] = max_seq_length
+        pk.dump(stuff, f)
+else:
+    with open(args.compressed_datasets, 'rb') as f:
+        stuff = pk.load(f)
+        train_dataset = stuff['train']
+        vocab = stuff['vocab']
+        test_dataset = stuff['test']
+        dev_dataset = stuff['dev']
+        max_seq_length = stuff['msl']
 
 
 def mean0(ls):
@@ -107,7 +131,8 @@ def mean0(ls):
 
 imv = mean0(train_dataset.y)
 model = Model(args, vocab, imv)
-model.cuda()
+if args.cuda:
+    model.cuda()
 model_save = 'modelbgrep_100proper.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
@@ -133,7 +158,8 @@ for epoch in range(args.epochs):
             punct = train_dataset.punct_x[lhs:rhs]
         else:
             punct = None
-        ys = ys.cuda()
+        if args.cuda:
+            ys = ys.cuda()
         youts = model(xs,
                       mask=padding_mask,
                       lens=lens,
