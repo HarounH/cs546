@@ -130,12 +130,22 @@ class Model(torch.nn.Module):
                 raise NotImplementedError
             self.pooling_layer = layers[-1]
         if args.variety:
-            current_dim += 1
+            variety_size = 1
+            # current_dim += 1
 
         if args.punct:
-            current_dim += 1
+            punct_size = 1
+            # current_dim += 1
         self.linear = nn.Linear(current_dim, num_outputs)
         layers.append(self.linear)
+
+        if args.variety:
+            self.variety_linear = nn.Linear(variety_size, num_outputs)
+            layers.append(self.variety_linear)
+        if args.punct:
+            self.punct_linear = nn.Linear(punct_size, num_outputs)
+            layers.append(self.punct_linear)
+
         if not args.skip_init_bias:
             layers[-1].bias.data = init_bias_value
         self.sigmoid = nn.Sigmoid()
@@ -155,7 +165,24 @@ class Model(torch.nn.Module):
         part = torch.autograd.Variable(temp, requires_grad=False)
         current = torch.cat((current, part), dim=1)
         return current
-
+    def _append_multiple_counts(self, current, counts):
+        '''
+            ARGS
+            ----
+                current: FloatTensor batch_size, cur_dim
+                counts: list of (FloatTensor batch_size, count_dim)
+        '''
+        temp = []
+        for count in counts:
+            if self.args.cuda:
+                temp.append(count.cuda())
+            else:
+                temp.append(count)
+        current = torch.cat([current] + temp, dim=1)  # Have to do one of these.
+        if self.args.cuda:
+            return current.cuda()
+        else:
+            return current
     def forward(self, x, mask=None, lens=None, punct=None, variety=None, pos=None):
         '''
             x: Variable, batch_size * max_seq_length
@@ -178,16 +205,20 @@ class Model(torch.nn.Module):
         # current: batch_size * max_seq_length * emb_dim
         if self.args.pos:
             n = pos_dim()
-            size, msl, emb_dim = current.size()
-            one_hot = np.zeros((size, msl, n))
-            for i, j in enumerate(pos):
-                for ind, elem in enumerate(j):
-                    one_hot[i][ind][elem] = 1
-            ohe = torch.from_numpy(one_hot).float()
-            if self.args.cuda:
-                ohe = ohe.cuda()
-            var = torch.autograd.Variable(ohe, pos=None, requires_grad=False)
+            # size, msl, emb_dim = current.size()
+            # one_hot = np.zeros((size, msl, n))
+            # for i, j in enumerate(pos):
+            #     for ind, elem in enumerate(j):
+            #         one_hot[i][ind][elem] = 1
+            # ohe = torch.from_numpy(one_hot).float()
+            # if self.args.cuda:
+            #     ohe = ohe.cuda()
+            # var = torch.autograd.Variable(ohe, pos=None, requires_grad=False)
             # var = pos  # TODO
+            # Need to do this because pytorch messes with current.size()[1]
+            var = pos[:, :current.size()[1], :]
+            if self.args.cuda:
+                var = var.cuda()
             current = torch.cat((current, var), dim=2)
         if self.args.cuda:
             current = current.cuda()
@@ -215,12 +246,12 @@ class Model(torch.nn.Module):
         else:
             current = current[lens]
 
-        if self.args.variety:
-            current = self._append_count(variety, current)
-        if self.args.punct:
-            current = self._append_count(punct, current)
-        if self.args.cuda:
-            current = current.cuda()
+        counts = []
         current = self.linear(current)
+        if self.args.variety:
+            current += self.variety_linear(variety)
+        if self.args.punct:
+            current += self.punct_linear(punct)
+
         current = self.sigmoid(current)
         return current

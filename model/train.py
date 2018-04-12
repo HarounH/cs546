@@ -38,10 +38,10 @@ parser.add_argument("-t", "--type", dest="model_type", type=str, metavar='<str>'
 parser.add_argument("-u", "--rec-unit", dest="recurrent_unit", type=str, metavar='<str>', default='lstm', help="Recurrent unit type (lstm|gru|simple) (default=lstm)")
 parser.add_argument("-a", "--algorithm", dest="algorithm", type=str, metavar='<str>', default='rmsprop', help="Optimization algorithm (rmsprop|sgd|adagrad|adadelta|adam|adamax) (default=rmsprop)")
 parser.add_argument("-l", "--loss", dest="loss", type=str, metavar='<str>', default='mse', help="Loss function (mse|mae) (default=mse)")
-parser.add_argument("-e", "--embdim", dest="emb_dim", type=int, metavar='<int>', default=10, help="Embeddings dimension (default=50)")
-parser.add_argument("-c", "--cnndim", dest="cnn_dim", type=int, metavar='<int>', default=2, help="CNN output dimension. '0' means no CNN layer (default=0)")
+parser.add_argument("-e", "--embdim", dest="emb_dim", type=int, metavar='<int>', default=50, help="Embeddings dimension (default=50)")
+parser.add_argument("-c", "--cnndim", dest="cnn_dim", type=int, metavar='<int>', default=0, help="CNN output dimension. '0' means no CNN layer (default=0)")
 parser.add_argument("-w", "--cnnwin", dest="cnn_window_size", type=int, metavar='<int>', default=3, help="CNN window size. (default=3)")
-parser.add_argument("-r", "--rnndim", dest="rnn_dim", type=int, metavar='<int>', default=5, help="RNN dimension. '0' means no RNN layer (default=300)")
+parser.add_argument("-r", "--rnndim", dest="rnn_dim", type=int, metavar='<int>', default=300, help="RNN dimension. '0' means no RNN layer (default=300)")
 parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=64, help="Batch size (default=64)")
 parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=-1, help="Vocab size (default=4000)")
 parser.add_argument("--aggregation", dest="aggregation", type=str, metavar='<str>', default='mot', help="The aggregation method for regp and bregp types (mot|attsum|attmean) (default=mot)")
@@ -50,7 +50,7 @@ parser.add_argument("--vocab-path", dest="vocab_path", type=str, metavar='<str>'
 parser.add_argument("--skip-init-bias", dest="skip_init_bias", action='store_true', help="Skip initialization of the last layer bias")
 parser.add_argument("--emb", dest="emb_path", type=str, metavar='<str>', help="The path to the word embeddings file (Word2Vec format)")
 parser.add_argument("--epochs", dest="epochs", type=int, metavar='<int>', default=50, help="Number of epochs (default=50)")
-parser.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
+parser.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=5000, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
 parser.add_argument("--seed", dest="seed", type=int, metavar='<int>', default=1234, help="Random seed (default=1234)")
 parser.add_argument("--clip_norm", dest="clip_norm", type=float, metavar='<float>', default=10.0, help="Threshold to clip gradients")
 parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
@@ -58,6 +58,7 @@ parser.add_argument("--variety", dest="variety", action='store_true', help="Vari
 parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")
 parser.add_argument('--cuda', dest='cuda', action='store_true', help='provide if you want to try using cuda')
 args = parser.parse_args()
+
 args.cuda = args.cuda and torch.cuda.is_available()
 
 out_dir = args.out_dir_path.strip('\r\n')
@@ -74,14 +75,14 @@ torch.cuda.manual_seed_all(args.seed)
 
 if args.compressed_datasets == '':
     # train
-    train_dataset = ASAPDataset(args.train_path, vocab_size=args.vocab_size, vocab_file=out_dir + '/vocab.pkl', pos=args.pos)
+    train_dataset = ASAPDataset(args.train_path, maxlen=args.maxlen, vocab_size=args.vocab_size, vocab_file=out_dir + '/vocab.pkl', pos=args.pos, read_vocab=(args.vocab_path is not None))
     vocab = train_dataset.vocab
     train_dataset.make_scores_model_friendly()
     # test
-    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos)
+    test_dataset = ASAPDataset(args.test_path, maxlen=args.maxlen, vocab=vocab, pos=args.pos)
     test_dataset.make_scores_model_friendly()
     # dev
-    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos)
+    dev_dataset = ASAPDataset(args.dev_path, maxlen=args.maxlen, vocab=vocab, pos=args.pos)
     dev_dataset.make_scores_model_friendly()
 
     max_seq_length = max(train_dataset.maxlen,
@@ -142,6 +143,7 @@ optimizer = U.get_optimizer(args, optimizable_parameters)
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
+    pdb.set_trace()
     loader = ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size)
     for xs, ys, ps, padding_mask, lens, (lhs, rhs) in loader:
         batch_idx += 1
