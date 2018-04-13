@@ -143,7 +143,7 @@ optimizer = U.get_optimizer(args, optimizable_parameters)
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
-    pdb.set_trace()
+    # pdb.set_trace()
     loader = ASAPDataLoader(train_dataset, train_dataset.maxlen, args.batch_size)
     for xs, ys, ps, padding_mask, lens, (lhs, rhs) in loader:
         batch_idx += 1
