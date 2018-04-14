@@ -117,7 +117,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.x[idx], self.y[idx], self.prompts[idx]
 
-    def tokenize(self, string, pos):
+    def tokenize(self, string, pos=False):
         tokens = nltk.word_tokenize(string)
         for index, token in enumerate(tokens):
             if token == '@' and (index+1) < len(tokens):
@@ -125,7 +125,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                 tokens.pop(index)
         return tokens
 
-    def _tokenize(self, text, pos):
+    def _tokenize(self, text, pos=False):
         sentences = nltk.sent_tokenize(text)
         ret = list()
         part_of_speech = list()
