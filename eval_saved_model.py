@@ -42,5 +42,9 @@ if __name__ == '__main__':
                     help='Whether to use POS in the model (the model must be trained with pos)')
     parse.add_argument('--prompt', dest="prompt", type=int, required=True,
                     help='Prompt id')
+    # Maxlen and vocab size
+    parse.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
+    parse.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
+
     args = parse.parse_args()
     main(args)
