@@ -51,7 +51,7 @@ fi
 WORKER_HOSTS=$(echo $WORKER_HOSTS | sed 's/,$//')
 PS_HOSTS=$(echo $PS_HOSTS | sed 's/,$//')
 
-PY_CMD="train.py -tr data/fold_0/train.tsv -tu data/fold_0/dev.tsv -ts data/fold_0/test.tsv -p 1 -o output_dir -b 9 -t bregp --epochs 100" 
+PY_CMD="train.py -tr ../data/fold_0/train.tsv --emb ../En_vectors.txt -tu ../data/fold_0/dev.tsv -ts ../data/fold_0/test.tsv -p 1 -o output_dir --cuda -b 16 -t bregp --epochs 100 --compressed_datasets ../datasets-pickled.pkl --nm new" 
 
 echo "I am ${MY_HOST_NAME}, my job is ${WHAT_AM_I} with task id ${MY_TASK_NUMBER}. Im about to run
 python3 ${PY_CMD}"
