@@ -22,6 +22,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from src.model import Model
 from src.dataset import ASAPDataset, ASAPDataLoader
 import src.utils as U
+from tensorboard_logger import configure, log_value
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--compressed_datasets', type=str, default='', help='pkl file to load dataset objects from')
+parser.add_argument('--nm', type=str, default='new', help='Name to save logs')
 parser.add_argument("-tr", "--train", dest="train_path", type=str, metavar='<str>', required=True, help="The path to the training set")
 parser.add_argument("-tu", "--tune", dest="dev_path", type=str, metavar='<str>', required=True, help="The path to the development set")
 parser.add_argument("-ts", "--test", dest="test_path", type=str, metavar='<str>', required=True, help="The path to the test set")
@@ -63,7 +65,7 @@ args.cuda = args.cuda and torch.cuda.is_available()
 
 out_dir = args.out_dir_path.strip('\r\n')
 U.mkdir_p(out_dir + '/preds')
-
+configure('logs/'+args.nm, flush_secs=5)
 U.set_logger(out_dir)
 U.print_args(args)
 
@@ -140,6 +142,7 @@ optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
 optimizer = U.get_optimizer(args, optimizable_parameters)
 
+lcount=0
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
@@ -179,6 +182,9 @@ for epoch in range(args.epochs):
         logger.info(
             'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
             )
-    torch.save(model, model_save)
+        log_value('loss', loss.data[0], lcount)
+        lcount+=1
+    torch.save(model, model_save[:-3]+str(epoch)+'.pt')
+    log_value('epoch_loss', sum(losses), epoch)
     print('Epoch %d: average loss=%f' % (epoch, sum(losses) / len(losses)))
 torch.save(model, model_save)
