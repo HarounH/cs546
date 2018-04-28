@@ -136,7 +136,8 @@ imv = mean0(train_dataset.y)
 model = Model(args, vocab, imv)
 if args.cuda:
     model.cuda()
-model_save = 'modelbgrep_100proper.pt'
+    model = torch.nn.DataParallel(model)
+model_save = './savedmodels/modelbgrepproper.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
