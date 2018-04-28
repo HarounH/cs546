@@ -137,13 +137,14 @@ model = Model(args, vocab, imv)
 if args.cuda:
     model.cuda()
     model = torch.nn.DataParallel(model)
+    print('Model is on GPU')
 model_save = './savedmodels/modelbgrepproper.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
 optimizer = U.get_optimizer(args, optimizable_parameters)
 
-lcount=0
+lcount = 0
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1

@@ -231,6 +231,7 @@ class Model(torch.nn.Module):
             current = pack_padded_sequence(current,
                                            seq_lengths,
                                            batch_first=True)
+            self.rnn_layer.flatten_parameters()
             current, _ = self.rnn_layer(current)  # (h0, c0)
             # current = temp[0]
             current, seq_lengths = pad_packed_sequence(current,
