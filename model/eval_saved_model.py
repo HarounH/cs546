@@ -2,7 +2,7 @@ import argparse
 import torch
 from src.dataset import ASAPDataset, ASAPDataLoader
 import numpy as np
-from src.qwk import quadratic_kappa
+from src.qwk import quadratic_weighted_kappa
 import pdb
 
 
@@ -19,13 +19,13 @@ def main(args):
     # train
     train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
     vocab = train_dataset.vocab
-    train_dataset.make_scores_model_friendly()
+    # scores are already dataset friendly
     # test
     test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
-    test_dataset.make_scores_model_friendly()
+    # Scores are already dataset friendly
     # dev
     dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
-    dev_dataset.make_scores_model_friendly()
+    # Scores are already dataset friendly
 
     lhs, rhs = ASAPDataset.asap_ranges[args.prompt]
     num_ratings = rhs - lhs + 1
@@ -48,6 +48,7 @@ def main(args):
     #pdb.set_trace()
     true_ys = torch.cat(true_ys).cpu().numpy().squeeze()
     pred_ys = np.rint(torch.cat(pred_ys).cpu().numpy().squeeze() * (rhs - lhs) + lhs)
+    #pdb.set_trace()    
     print("Quadratic kappa: {}".format(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs)))
 
 if __name__ == '__main__':
