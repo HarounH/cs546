@@ -229,8 +229,8 @@ def get_predictions(raw_numpy, lowest, highest):
 def quadratic_kappa(pred_theirs, pred_ours, lowest_score, highest_score):
     score_range = highest_score - lowest_score
     num_ratings = score_range + 1
-    y_theirs = pred_theirs.data.numpy().squeeze()
-    y_ours = pred_ours.data.numpy().squeeze()
+    y_theirs = pred_theirs.numpy().squeeze()
+    y_ours = pred_ours.numpy().squeeze()
 
     their_int = get_predictions(y_theirs, lowest_score, highest_score)
     ours_int = get_predictions(y_ours, lowest_score, highest_score)
