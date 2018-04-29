@@ -32,13 +32,20 @@ def main(args):
     loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, args.batch_size)
     true_ys = []
     pred_ys = []
+    #pdb.set_trace()
+    batch = -1
     for xs, ys, ps, padding_mask, lens, bounds in loader:
+        batch += 1
+        print('Starting batch', batch)
         xs.cpu()
         ys.cpu()
-        pdb.set_trace()
+        #pdb.set_trace()
         pred = model(xs, mask=padding_mask, lens=lens)
-        true_ys.append(ys.data)
-        pred_ys.append(pred_ys.data)
+        #pdb.set_trace()
+        true_ys.append(ys)
+        pred_ys.append(pred.detach().squeeze().data)
+        #pdb.set_trace()
+    #pdb.set_trace()
     true_ys = torch.stack(true_ys, dim=0)
     pred_ys = torch.stack(pred_ys, dim=0)
     print("Quadratic kappa: {}".format(quadratic_kappa(pred_ys, true_ys, lhs, rhs)))
