@@ -3,6 +3,8 @@ import torch
 from src.dataset import ASAPDataset, ASAPDataLoader
 import numpy as np
 from src.qwk import quadratic_kappa
+import pdb
+
 
 def main(args):
     if not hasattr(args, 'out_dir'):
@@ -10,6 +12,7 @@ def main(args):
     prompt = args.prompt
     model = torch.load(args.model, map_location=lambda storage, location: storage)
     model.cpu()
+    # model.cpu()
     # train
     train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt)
     vocab = train_dataset.vocab
@@ -25,6 +28,7 @@ def main(args):
     num_ratings = rhs - lhs + 1
     loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, 9999999999999)
     for xs, ys, ps, padding_mask, lens, bounds in loader:
+        pdb.set_trace()
         pred = model(xs, mask=padding_mask, lens=lens)
         print("Quadratic kappa: {}".format(quadratic_kappa(pred, ys, lhs, rhs)))
 
