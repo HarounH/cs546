@@ -32,11 +32,18 @@ class Ensembler(torch.nn.Module):
         self.model_list = model_list
         self.args = args
         # TODO: set up ensembling
+        self.ensemble_method = args.ensemble_method
+
     def forward(self, x):
         predictions = []
         for model in self.model_list:
             predictions.append(model(x))
-
+        predictions = torch.from_numpy(np.array(predictions))
         # Go through voting
-        result = None
+        if self.ensemble_method == 'median':
+            result = torch.median(predictions)
+        elif self.ensemble_method == 'mean':
+            result = torch.mean(predictions)
+        else:
+            result = None
         return result

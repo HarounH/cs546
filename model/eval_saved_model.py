@@ -32,7 +32,7 @@ def main(args):
     loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, args.batch_size)
     true_ys = []
     pred_ys = []
-    #pdb.set_trace()
+    pdb.set_trace()
     batch = -1
     for xs, ys, ps, padding_mask, lens, bounds in loader:
         batch += 1

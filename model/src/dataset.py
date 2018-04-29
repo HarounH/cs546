@@ -267,6 +267,8 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                         self.punct_x.append(len([1 for i in content if i in PUNCTS]))
                         data_y.append(score)
                         prompt_ids.append(essay_set)
+                        if len(indices) > maxlen_x:
+                            self.maxlen_x_id = essay_id
                         maxlen_x = max(maxlen_x, len(indices))
         self.maxlen_x = maxlen_x  # Gotta remember.
         self.unique_x = np.array(self.unique_x)
