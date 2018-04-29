@@ -138,7 +138,7 @@ if args.cuda:
     model.cuda()
     model = torch.nn.DataParallel(model)
     print('Model is on GPU')
-model_save = './savedmodels/modelbgrepproper.pt'
+model_save = './savedmodels/modelbgrepproper_punct.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss

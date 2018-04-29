@@ -135,11 +135,11 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                 tagged = list(map(lambda x: x[-1], tagger.tag(tokens)))
             for index, token in enumerate(tokens):
                 if token == '@' and (index+1) < len(tokens):
-                    tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1][0])
+                    tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
                     tokens.pop(index)
                     if pos:
                         tagged.pop(index)
-                ret.extend(tokens)
+            ret.extend(tokens)
             if pos:
                 part_of_speech.extend(tagged)
         if pos:
@@ -232,6 +232,10 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                 content = str(tokens[2])
                 score = float(tokens[score_index])
                 indices = []
+                #if not(essay_id == 1139 or  essay_id==1509 or essay_id==1680):
+                #    continue
+                #else:
+                #    pdb.set_trace()
                 if essay_set == prompt_id or prompt_id < 0:
                     if to_lower:
                         content = content.lower()
