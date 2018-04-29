@@ -14,16 +14,17 @@ def main(args):
     if args.dataparallel:
         model = model.module
     model.cpu()
+    model.args.cuda = False
     # model.cpu()
     # train
-    train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt)
+    train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
     vocab = train_dataset.vocab
     train_dataset.make_scores_model_friendly()
     # test
-    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt)
+    test_dataset = ASAPDataset(args.test_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
     test_dataset.make_scores_model_friendly()
     # dev
-    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt)
+    dev_dataset = ASAPDataset(args.dev_path, vocab=vocab, pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
     dev_dataset.make_scores_model_friendly()
 
     lhs, rhs = ASAPDataset.asap_ranges[args.prompt]
