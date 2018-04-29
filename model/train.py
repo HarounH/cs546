@@ -64,12 +64,22 @@ args = parser.parse_args()
 args.cuda = args.cuda and torch.cuda.is_available()
 
 out_dir = args.out_dir_path.strip('\r\n')
+model_save = os.path.join(out_dir,
+                          'models/modelbgrepproper.pt')
+
 U.mkdir_p(out_dir + '/preds')
-configure('logs/'+args.nm, flush_secs=5)
+U.mkdir_p(out_dir + '/models/')
+U.mkdir_p(out_dir + '/logs/')
+
+configure(os.path.join(out_dir,
+                       'logs/'+args.nm),
+          flush_secs=5)
+
 U.set_logger(out_dir)
 U.print_args(args)
 
 DEFAULT_COMPRESSED_DATASET = 'datasets-pickled.pkl'
+
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -138,7 +148,6 @@ if args.cuda:
     model.cuda()
     model = torch.nn.DataParallel(model)
     print('Model is on GPU')
-model_save = './savedmodels/modelbgrepproper_punct.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
@@ -181,12 +190,12 @@ for epoch in range(args.epochs):
         torch.nn.utils.clip_grad_norm(optimizable_parameters, args.clip_norm)
         optimizer.step()
         print('\tloss=%f' % (losses[-1]))
-        logger.info(
-            'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
-            )
+        # logger.info(
+        #     'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
+        #     )
         log_value('loss', loss.data[0], lcount)
-        lcount+=1
-    torch.save(model, model_save[:-3]+str(epoch)+'.pt')
+        lcount += 1
+    torch.save(model, model_save[:-3]+'.' + str(epoch)+'.pt')
     log_value('epoch_loss', sum(losses), epoch)
     print('Epoch %d: average loss=%f' % (epoch, sum(losses) / len(losses)))
 torch.save(model, model_save)

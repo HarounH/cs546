@@ -40,7 +40,25 @@ def main(args):
         xs.cpu()
         ys.cpu()
         #pdb.set_trace()
-        pred = model(xs, mask=padding_mask, lens=lens)
+        if args.pos:
+            indexes = test_dataset.tags_x[bounds[0]:bounds[1]]
+        else:
+            indexes = None
+        if args.variety:
+            variety = test_dataset.unique_x[bounds[0]:bounds[1]]
+        else:
+            variety = None
+        if args.punct:
+            punct = test_dataset.punct_x[bounds[0]:bounds[1]]
+        else:
+            punct = None
+
+        pred = model(xs,
+                     mask=padding_mask,
+                     lens=lens,
+                     pos=indexes,
+                     variety=variety,
+                     punct=punct)
         #pdb.set_trace()
         true_ys.append(ys.data)
         pred_ys.append(pred.detach().squeeze().data)
@@ -48,7 +66,7 @@ def main(args):
     #pdb.set_trace()
     true_ys = torch.cat(true_ys).cpu().numpy().squeeze()
     pred_ys = np.rint(torch.cat(pred_ys).cpu().numpy().squeeze() * (rhs - lhs) + lhs)
-    #pdb.set_trace()    
+    #pdb.set_trace()
     print("Quadratic kappa: {}".format(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs)))
 
 if __name__ == '__main__':
@@ -70,6 +88,9 @@ if __name__ == '__main__':
     parse.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
     parse.add_argument('--dataparallel', type=bool, default=True, help='(Set to true if saved model was a DataParallel model')
     parse.add_argument('-b', '--batch_size', default=64, type=int, help='Batch size to use for testing. CANT BUY MOAR RAM')
+    parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
+    parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer")
+    parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")    
     args = parse.parse_args()
 
     main(args)
