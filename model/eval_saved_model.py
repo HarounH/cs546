@@ -46,9 +46,9 @@ def main(args):
         pred_ys.append(pred.detach().squeeze().data)
         #pdb.set_trace()
     #pdb.set_trace()
-    true_ys = torch.cat(true_ys)#, dim=0)
-    pred_ys = torch.cat(pred_ys)#, dim=0)
-    print("Quadratic kappa: {}".format(quadratic_kappa(pred_ys, true_ys, lhs, rhs)))
+    true_ys = torch.cat(true_ys).cpu().numpy().squeeze()
+    pred_ys = np.rint(torch.cat(pred_ys).cpu().numpy().squeeze() * (rhs - lhs) + lhs)
+    print("Quadratic kappa: {}".format(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs)))
 
 if __name__ == '__main__':
     parse = argparse.ArgumentParser(description='Evaluates a saved model')
