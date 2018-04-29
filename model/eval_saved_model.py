@@ -8,9 +8,11 @@ import pdb
 
 def main(args):
     if not hasattr(args, 'out_dir'):
-        args.out_dir = "out/"
+        args.out_dir = "output_dir/"
     prompt = args.prompt
     model = torch.load(args.model, map_location=lambda storage, location: storage)
+    if args.dataparallel:
+        model = model.module
     model.cpu()
     # model.cpu()
     # train
@@ -28,6 +30,8 @@ def main(args):
     num_ratings = rhs - lhs + 1
     loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, 9999999999999)
     for xs, ys, ps, padding_mask, lens, bounds in loader:
+        xs.cpu()
+        ys.cpu()
         pdb.set_trace()
         pred = model(xs, mask=padding_mask, lens=lens)
         print("Quadratic kappa: {}".format(quadratic_kappa(pred, ys, lhs, rhs)))
@@ -49,6 +53,7 @@ if __name__ == '__main__':
     # Maxlen and vocab size
     parse.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
     parse.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
-
+    parse.add_argument('--dataparallel', type=bool, default=True, help='(Set to true if saved model was a DataParallel model')
     args = parse.parse_args()
+
     main(args)
