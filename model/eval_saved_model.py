@@ -29,13 +29,19 @@ def main(args):
 
     lhs, rhs = ASAPDataset.asap_ranges[args.prompt]
     num_ratings = rhs - lhs + 1
-    loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, 9999999999999)
+    loader = ASAPDataLoader(test_dataset, train_dataset.maxlen, args.batch_size)
+    true_ys = []
+    pred_ys = []
     for xs, ys, ps, padding_mask, lens, bounds in loader:
         xs.cpu()
         ys.cpu()
         pdb.set_trace()
         pred = model(xs, mask=padding_mask, lens=lens)
-        print("Quadratic kappa: {}".format(quadratic_kappa(pred, ys, lhs, rhs)))
+        true_ys.append(ys.data)
+        pred_ys.append(pred_ys.data)
+    true_ys = torch.stack(true_ys, dim=0)
+    pred_ys = torch.stack(pred_ys, dim=0)
+    print("Quadratic kappa: {}".format(quadratic_kappa(pred_ys, true_ys, lhs, rhs)))
 
 if __name__ == '__main__':
     parse = argparse.ArgumentParser(description='Evaluates a saved model')
@@ -55,6 +61,7 @@ if __name__ == '__main__':
     parse.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
     parse.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
     parse.add_argument('--dataparallel', type=bool, default=True, help='(Set to true if saved model was a DataParallel model')
+    parse.add_argument('-b', '--batch_size', default=64, type=int, help='Batch size to use for testing. CANT BUY MOAR RAM')
     args = parse.parse_args()
 
     main(args)
