@@ -257,7 +257,7 @@ class Model(torch.nn.Module):
         current = self.sigmoid(current)
         return current
 class EnsembleModel(torch.nn.Module):
-    def __init__(self, models, type="mean"):
+    def __init__(self, models, _type="mean"):
         super(EnsembleModel, self).__init__()
         models = [torch.load(model, map_location=lambda storage, location: storage) for model in models]
         # Move stuff to CPU and out of DataParallel.
@@ -267,7 +267,7 @@ class EnsembleModel(torch.nn.Module):
             models[i].cpu()
         
         self.models = torch.nn.ModuleList(models)
-        self.voting_strategy = type
+        self.voting_strategy = _type
 
     def forward(self, x, *args, **kwargs):
         predictions = [model(x, *args, **kwargs) for model in self.models]
