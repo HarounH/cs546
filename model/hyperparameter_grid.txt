@@ -1,0 +1,13 @@
+-tr ../data/fold_0/train.tsv
+-tu ../data/fold_0/dev.tsv
+-ts ../data/fold_0/test.tsv
+-p 1
+--epochs 2
+--vocab-size 4000
+--emb En_vectors.txt
+--maxlen 10000
+--cuda 
+ --pos 
+ --variety 
+ --punct-count 
+-c 0 50 100
