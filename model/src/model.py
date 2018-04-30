@@ -259,7 +259,14 @@ class Model(torch.nn.Module):
 class EnsembleModel(torch.nn.Module):
     def __init__(self, models, type="mean"):
         super(EnsembleModel, self).__init__()
-        self.models = torch.nn.ModuleList([torch.load(model, map_location=lambda storage, location: storage) for model in models])
+        models = [torch.load(model, map_location=lambda storage, location: storage) for model in models]
+        # Move stuff to CPU and out of DataParallel.
+        for i in range(len(models)):
+            if type(models[i]) is torch.nn.DataParallel:
+                models[i] = models[i].module
+            models[i].cpu()
+        
+        self.models = torch.nn.ModuleList(models)
         self.voting_strategy = type
 
     def forward(self, x, *args, **kwargs):
@@ -267,5 +274,7 @@ class EnsembleModel(torch.nn.Module):
         concat_preds = torch.cat(predictions)
         if self.voting_strategy == "mean":
             return concat_preds.mean(dim=1)
+        elif self.voting_strategy == "median":
+            return torch.median(concat_preds, dim=1)
         else:
             raise Exception("Invalid voting strategy")

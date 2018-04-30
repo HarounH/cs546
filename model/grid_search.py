@@ -27,7 +27,7 @@ def namer(names, values):
     base = 'run.'
 
     try:
-        idx = names.index('--cnndim')
+        idx = names.index('-c')
         val = values[idx]
         base += 'cnn.' + str(val)
     except:
