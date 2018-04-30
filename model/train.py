@@ -19,7 +19,7 @@ from torch.autograd import Variable
 from torch.distributions import Bernoulli
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 # User imports
-from src.model import Model
+from src.model import Model, EnsembleModel
 from src.dataset import ASAPDataset, ASAPDataLoader
 import src.utils as U
 from tensorboard_logger import configure, log_value
@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
 parser.add_argument('--compressed_datasets', type=str, default='', help='pkl file to load dataset objects from')
 parser.add_argument('--nm', type=str, default='new', help='Name to save logs')
+parser.add_argument("--ensembles", dest="ensemble_models", type=str, metavar='<str>', default=None, help="List of torch.save models to use in ensemble")
+parser.add_argument("--ensemble-method", dest="ensemble_method", type=str, metavar='<str>', default='mean', help="Method to ensemble (default=mean)")
 parser.add_argument("-tr", "--train", dest="train_path", type=str, metavar='<str>', required=True, help="The path to the training set")
 parser.add_argument("-tu", "--tune", dest="dev_path", type=str, metavar='<str>', required=True, help="The path to the development set")
 parser.add_argument("-ts", "--test", dest="test_path", type=str, metavar='<str>', required=True, help="The path to the test set")
@@ -133,7 +135,11 @@ def mean0(ls):
 
 
 imv = mean0(train_dataset.y)
-model = Model(args, vocab, imv)
+if args.ensemble_models is None:
+    model = Model(args, vocab, imv)
+else:
+    model_name = args.ensemble_models.split(",")
+    model = EnsembleModel(model_name, args.ensemble_method)
 if args.cuda:
     model.cuda()
     model = torch.nn.DataParallel(model)

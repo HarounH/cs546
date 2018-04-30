@@ -256,3 +256,16 @@ class Model(torch.nn.Module):
 
         current = self.sigmoid(current)
         return current
+class EnsembleModel(torch.nn.Module):
+    def __init__(self, models, type="mean"):
+        super(EnsembleModel, self).__init__()
+        self.models = torch.nn.ModuleList([torch.load(model, map_location=lambda storage, location: storage) for model in models])
+        self.voting_strategy = type
+
+    def forward(self, x, *args, **kwargs):
+        predictions = [model(x, *args, **kwargs) for model in self.models]
+        concat_preds = torch.cat(predictions)
+        if self.voting_strategy == "mean":
+            return concat_preds.mean(dim=1)
+        else:
+            raise Exception("Invalid voting strategy")
