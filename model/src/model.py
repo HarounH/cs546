@@ -264,8 +264,10 @@ class EnsembleModel(torch.nn.Module):
 
     def forward(self, x, *args, **kwargs):
         predictions = [model(x, *args, **kwargs) for model in self.models]
-        concat_preds = torch.cat(predictions)
+        concat_preds = torch.cat(predictions, dim=1)
         if self.voting_strategy == "mean":
             return concat_preds.mean(dim=1)
+        elif self.voting_strategy == "median":
+            return concat_preds.median(dim=1)
         else:
             raise Exception("Invalid voting strategy")
