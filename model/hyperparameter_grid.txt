@@ -2,7 +2,8 @@
 -tu ../data/fold_0/dev.tsv
 -ts ../data/fold_0/test.tsv
 -p 1
---epochs 2
+--epochs 100
+-b 32
 --vocab-size 4000
 --emb En_vectors.txt
 --maxlen 10000
@@ -10,4 +11,4 @@
  --pos 
  --variety 
  --punct-count 
--c 0 50 100
+-c 0 100
