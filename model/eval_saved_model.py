@@ -70,27 +70,27 @@ def main(args):
     print("Quadratic kappa: {}".format(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs)))
 
 if __name__ == '__main__':
-    parse = argparse.ArgumentParser(description='Evaluates a saved model')
-    parse.add_argument('-m', '--model', required=True, type=str, metavar='<str>',
+    parser = argparse.ArgumentParser(description='Evaluates a saved model')
+    parser.add_argument('-m', '--model', required=True, type=str, metavar='<str>',
                     help='Model path')
-    parse.add_argument('-r', '--train', dest="train_path", required=True, type=str, metavar='<str>',
+    parser.add_argument('-r', '--train', dest="train_path", required=True, type=str, metavar='<str>',
                     help='Path to the training dataset (needed for vocabs)')
-    parse.add_argument('-t', '--test-path', dest="test_path" , required=True, type=str, metavar='<str>',
+    parser.add_argument('-t', '--test-path', dest="test_path" , required=True, type=str, metavar='<str>',
                     help='Path to the test dataset')
-    parse.add_argument('-d', '--dev-path', dest="dev_path", required=True, type=str, metavar='<str>',
+    parser.add_argument('-d', '--dev-path', dest="dev_path", required=True, type=str, metavar='<str>',
                     help='Path to the development ids')
-    parse.add_argument('-p', '--pos', dest="pos", action="store_true",
-                    help='Whether to use POS in the model (the model must be trained with pos)')
-    parse.add_argument('--prompt', dest="prompt", type=int, required=True,
+    #parser.add_argument('-p', '--pos', dest="pos", action="store_true",
+    #                help='Whether to use POS in the model (the model must be trained with pos)')
+    parser.add_argument('--prompt', dest="prompt", type=int, required=True,
                     help='Prompt id')
     # Maxlen and vocab size
-    parse.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
-    parse.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
-    parse.add_argument('--dataparallel', type=bool, default=True, help='(Set to true if saved model was a DataParallel model')
-    parse.add_argument('-b', '--batch_size', default=64, type=int, help='Batch size to use for testing. CANT BUY MOAR RAM')
+    parser.add_argument("--maxlen", dest="maxlen", type=int, metavar='<int>', default=0, help="Maximum allowed number of words during training. '0' means no limit (default=0)")
+    parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
+    parser.add_argument('--dataparallel', type=bool, default=True, help='(Set to true if saved model was a DataParallel model')
+    parser.add_argument('-b', '--batch_size', default=64, type=int, help='Batch size to use for testing. CANT BUY MOAR RAM')
     parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
     parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer")
     parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")    
-    args = parse.parse_args()
+    args = parser.parse_args()
 
     main(args)
