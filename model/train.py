@@ -46,8 +46,8 @@ parser.add_argument("-e", "--embdim", dest="emb_dim", type=int, metavar='<int>',
 parser.add_argument("-c", "--cnndim", dest="cnn_dim", type=int, metavar='<int>', default=0, help="CNN output dimension. '0' means no CNN layer (default=0)")
 parser.add_argument("-w", "--cnnwin", dest="cnn_window_size", type=int, metavar='<int>', default=3, help="CNN window size. (default=3)")
 parser.add_argument("-r", "--rnndim", dest="rnn_dim", type=int, metavar='<int>', default=300, help="RNN dimension. '0' means no RNN layer (default=300)")
-parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=64, help="Batch size (default=64)")
-parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=-1, help="Vocab size (default=4000)")
+parser.add_argument("-b", "--batch-size", dest="batch_size", type=int, metavar='<int>', default=32, help="Batch size (default=32)")
+parser.add_argument("-v", "--vocab-size", dest="vocab_size", type=int, metavar='<int>', default=4000, help="Vocab size (default=4000)")
 parser.add_argument("--aggregation", dest="aggregation", type=str, metavar='<str>', default='mot', help="The aggregation method for regp and bregp types (mot|attsum|attmean) (default=mot)")
 parser.add_argument("--dropout", dest="dropout_prob", type=float, metavar='<float>', default=0.5, help="The dropout probability. To disable, give a negative number (default=0.5)")
 parser.add_argument("--vocab-path", dest="vocab_path", type=str, metavar='<str>', help="(Optional) The path to the existing vocab file (*.pkl)")
@@ -66,12 +66,22 @@ args = parser.parse_args()
 args.cuda = args.cuda and torch.cuda.is_available()
 
 out_dir = args.out_dir_path.strip('\r\n')
+model_save = os.path.join(out_dir,
+                          'models/modelbgrepproper.pt')
+
 U.mkdir_p(out_dir + '/preds')
-configure('logs/'+args.nm, flush_secs=5)
+U.mkdir_p(out_dir + '/models/')
+U.mkdir_p(out_dir + '/logs/')
+
+configure(os.path.join(out_dir,
+                       'logs/'+args.nm),
+          flush_secs=5)
+
 U.set_logger(out_dir)
 U.print_args(args)
 
 DEFAULT_COMPRESSED_DATASET = 'datasets-pickled.pkl'
+
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -144,7 +154,6 @@ if args.cuda:
     model.cuda()
     model = torch.nn.DataParallel(model)
     print('Model is on GPU')
-model_save = './savedmodels/modelbgrepproper_punct.pt'
 torch.save(model, model_save)
 optimizable_parameters = model.parameters()
 loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
@@ -187,12 +196,12 @@ for epoch in range(args.epochs):
         torch.nn.utils.clip_grad_norm(optimizable_parameters, args.clip_norm)
         optimizer.step()
         print('\tloss=%f' % (losses[-1]))
-        logger.info(
-            'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
-            )
+        # logger.info(
+        #     'Epoch=%d batch=%d loss=%f' % (epoch, batch_idx, losses[-1])
+        #     )
         log_value('loss', loss.data[0], lcount)
-        lcount+=1
-    torch.save(model, model_save[:-3]+str(epoch)+'.pt')
+        lcount += 1
+    torch.save(model, model_save[:-3]+'.' + str(epoch)+'.pt')
     log_value('epoch_loss', sum(losses), epoch)
     print('Epoch %d: average loss=%f' % (epoch, sum(losses) / len(losses)))
 torch.save(model, model_save)
