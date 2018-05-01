@@ -272,10 +272,12 @@ class EnsembleModel(torch.nn.Module):
             if type(models[i]) is torch.nn.DataParallel:
                 models[i] = models[i].module
             models[i].cpu()
-        
+
         self.models = torch.nn.ModuleList(models)
         self.voting_strategy = _type
-
+        if _type == 'supervisor':
+            if len(models) != 3:
+                raise RuntimeError('Must be a supervisor with 3')
     def forward(self, x, *args, **kwargs):
         predictions = [model(x, *args, **kwargs) for model in self.models]
         concat_preds = torch.cat(predictions, dim=1)
@@ -283,5 +285,8 @@ class EnsembleModel(torch.nn.Module):
             return concat_preds.mean(dim=1)
         elif self.voting_strategy == "median":
             return torch.median(concat_preds, dim=1)
+        elif self.voting_strategy == 'supervisor':
+            sign = torch.sign(torch.abs(predictions[1] - predictions[0]))
+            return predictions[2] * sign + 0.5*(predictions[0] + predictions[1])*(1 - sign)
         else:
             raise Exception("Invalid voting strategy")
