@@ -29,7 +29,6 @@ def main(args):
         path = os.path.join(args.model,file)
         print("processing this file:" + path)
         model = torch.load(path, map_location=lambda storage, location: storage)
-        print(model.parameters())
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
         if args.cuda:
