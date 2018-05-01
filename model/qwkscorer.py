@@ -36,6 +36,7 @@ def main(args):
             model.cuda()
         else:
             model.cpu()
+        if isinstance(model, torch.nn.DataParallel) and not(args.cuda):
             model.args.cuda = False
         # model.cpu()
 
