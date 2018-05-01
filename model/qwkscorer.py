@@ -11,7 +11,7 @@ def main(args):
     if not hasattr(args, 'out_dir'):
         args.out_dir = "output_dir/"
     prompt = args.prompt
-    
+
     # train
     train_dataset = ASAPDataset(args.train_path, vocab_file=args.out_dir + '/vocab.pkl', pos=args.pos, prompt_id=args.prompt, maxlen=args.maxlen, vocab_size=args.vocab_size)
     vocab = train_dataset.vocab
@@ -29,6 +29,7 @@ def main(args):
         path = os.path.join(args.model,file)
         print("processing this file:" + path)
         model = torch.load(path, map_location=lambda storage, location: storage)
+        model.eval()
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
         if args.cuda:
@@ -85,14 +86,14 @@ def main(args):
             pred_ys.append(pred.detach().squeeze().data)
             #pdb.set_trace()
         #pdb.set_trace()
+
         true_ys = torch.cat(true_ys).cpu().numpy().squeeze()
         pred_ys = np.rint(torch.cat(pred_ys).cpu().numpy().squeeze() * (rhs - lhs) + lhs)
-        #pdb.set_trace()
         score.append(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs))
         print("Quadratic kappa: {}".format(quadratic_weighted_kappa(pred_ys, true_ys, min_rating=lhs, max_rating=rhs)))
-    
+
     sortedscore =sorted(score, reverse=True)
-    for count in range(min(10,len(score))): 
+    for count in range(min(10,len(score))):
         val = score.index(sortedscore[count])
         print('Rank : %d Score: %f : Name: %s'%(count,sortedscore[count], files[val]))
 
@@ -118,7 +119,7 @@ if __name__ == '__main__':
     parser.add_argument("--pos", dest="pos", action='store_true', help="Use part of speech tagging in the training")
     parser.add_argument("--variety", dest="variety", action='store_true', help="Variety of words in output layer")
     parser.add_argument("--punct-count", dest="punct", action='store_true', help="Variety of words in output layer")
-    parser.add_argument('--cuda', type=bool, default=False, help='cuda')    
+    parser.add_argument('--cuda', type=bool, default=False, help='cuda')
     args = parser.parse_args()
 
     main(args)

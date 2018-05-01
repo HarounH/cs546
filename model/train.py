@@ -160,6 +160,7 @@ loss_fn = F.mse_loss if args.loss == 'mse' else F.l1_loss
 optimizer = U.get_optimizer(args, optimizable_parameters)
 
 lcount = 0
+model.train()
 for epoch in range(args.epochs):
     losses = []
     batch_idx = -1
