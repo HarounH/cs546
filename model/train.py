@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 parser = argparse.ArgumentParser()
 parser.add_argument('--compressed_datasets', type=str, default='', help='pkl file to load dataset objects from')
 parser.add_argument('--nm', type=str, default='new', help='Name to save logs')
-parser.add_argument("--ensembles", dest="ensemble_models", type=str, metavar='<str>', default=None, help="List of torch.save models to use in ensemble")
+parser.add_argument("--ensembles", dest="ensemble_models", type=str, nargs='+', metavar='<str>', default=None, help="List of torch.save models to use in ensemble")
 parser.add_argument("--ensemble-method", dest="ensemble_method", type=str, metavar='<str>', default='mean', help="Method to ensemble (default=mean)")
 parser.add_argument("-tr", "--train", dest="train_path", type=str, metavar='<str>', required=True, help="The path to the training set")
 parser.add_argument("-tu", "--tune", dest="dev_path", type=str, metavar='<str>', required=True, help="The path to the development set")
@@ -148,7 +148,7 @@ imv = mean0(train_dataset.y)
 if args.ensemble_models is None:
     model = Model(args, vocab, imv)
 else:
-    model_name = args.ensemble_models.split(",")
+    model_name = args.ensemble_models
     model = EnsembleModel(model_name, args.ensemble_method)
 if args.cuda:
     model.cuda()
