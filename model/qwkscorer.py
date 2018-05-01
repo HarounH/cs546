@@ -29,12 +29,13 @@ def main(args):
         path = os.path.join(args.model,file)
         print("processing this file:" + path)
         model = torch.load(path, map_location=lambda storage, location: storage)
-        model = torch.load(path, map_location=lambda storage, location: storage)
+        print(model.parameters())
         if isinstance(model, torch.nn.DataParallel):
             model = model.module
         if args.cuda:
             model.cuda()
         else:
+            print('in cpu')
             model.cpu()
         if isinstance(model, torch.nn.DataParallel) and not(args.cuda):
             model.args.cuda = False
@@ -59,10 +60,18 @@ def main(args):
                 indexes = None
             if args.variety:
                 variety = test_dataset.unique_x[bounds[0]:bounds[1]]
+                if args.cuda:
+                    variety.cuda()
+                else:
+                    variety.cpu()
             else:
                 variety = None
             if args.punct:
                 punct = test_dataset.punct_x[bounds[0]:bounds[1]]
+                if args.cuda:
+                    punct.cuda()
+                else:
+                    punct.cpu()
             else:
                 punct = None
 
