@@ -249,10 +249,17 @@ class Model(torch.nn.Module):
 
         counts = []
         current = self.linear(current)
+        #pdb.set_trace()
         if self.args.variety:
-            current += self.variety_linear(variety)
+            if self.args.cuda:
+                current += self.variety_linear(variety.cuda())
+            else:
+                current += self.variety_linear(variety.cpu())
         if self.args.punct:
-            current += self.punct_linear(punct)
+            if self.args.cuda:
+                current += self.punct_linear(punct.cuda())
+            else:
+                current += self.punct_linear(punct.cpu())
 
         current = self.sigmoid(current)
         return current
