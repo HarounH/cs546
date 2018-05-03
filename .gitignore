@@ -1,3 +1,8 @@
+# data
+*.tsv
+# Reviews stuff
+reviews/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

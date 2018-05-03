@@ -130,12 +130,22 @@ class Model(torch.nn.Module):
                 raise NotImplementedError
             self.pooling_layer = layers[-1]
         if args.variety:
-            current_dim += 1
+            variety_size = 1
+            # current_dim += 1
 
-        if args.punct: 
-            current_dim += 1
+        if args.punct:
+            punct_size = 1
+            # current_dim += 1
         self.linear = nn.Linear(current_dim, num_outputs)
         layers.append(self.linear)
+
+        if args.variety:
+            self.variety_linear = nn.Linear(variety_size, num_outputs)
+            layers.append(self.variety_linear)
+        if args.punct:
+            self.punct_linear = nn.Linear(punct_size, num_outputs)
+            layers.append(self.punct_linear)
+
         if not args.skip_init_bias:
             layers[-1].bias.data = init_bias_value
         self.sigmoid = nn.Sigmoid()
@@ -149,11 +159,30 @@ class Model(torch.nn.Module):
 
     def _append_count(self, array, current):
         array = np.array(array)
-        part = torch.autograd.Variable(torch.unsqueeze(torch.from_numpy(array), 1).float().cuda()
-,requires_grad=False)
+        temp = torch.unsqueeze(torch.from_numpy(array), 1).float()
+        if self.args.cuda:
+            temp = temp.cuda()
+        part = torch.autograd.Variable(temp, requires_grad=False)
         current = torch.cat((current, part), dim=1)
         return current
-
+    def _append_multiple_counts(self, current, counts):
+        '''
+            ARGS
+            ----
+                current: FloatTensor batch_size, cur_dim
+                counts: list of (FloatTensor batch_size, count_dim)
+        '''
+        temp = []
+        for count in counts:
+            if self.args.cuda:
+                temp.append(count.cuda())
+            else:
+                temp.append(count)
+        current = torch.cat([current] + temp, dim=1)  # Have to do one of these.
+        if self.args.cuda:
+            return current.cuda()
+        else:
+            return current
     def forward(self, x, mask=None, lens=None, punct=None, variety=None, pos=None):
         '''
             x: Variable, batch_size * max_seq_length
@@ -162,33 +191,47 @@ class Model(torch.nn.Module):
             mask: batch_size * max_seq_length
             lens: batch_size LongTensor, lengths of each sequence.
         '''
-        if mask is not None:
+        if mask is not None and self.args.cuda:
             mask = mask.cuda()
-        if lens is not None:
+        if lens is not None and self.args.cuda:
             lens = lens.cuda()
         batch_size, max_seq_length = x.size()[0], x.size()[1]
-        current = x
+        current = x.long()
         # Embedding
-        current = self.embedding_layer(current.long().cuda())
+        if self.args.cuda:
+            current = current.cuda()
+        # pdb.set_trace()
+        current = self.embedding_layer(current)
         # current: batch_size * max_seq_length * emb_dim
         if self.args.pos:
             n = pos_dim()
-            size, msl, emb_dim = current.size()
-            one_hot = np.zeros((size, msl, n))
-            for i, j in enumerate(pos):
-                for ind, elem in enumerate(j):
-                    one_hot[i][ind][elem] = 1
-            var = torch.autograd.Variable(torch.from_numpy(one_hot).float().cuda(), pos=None, requires_grad=False)
+            # size, msl, emb_dim = current.size()
+            # one_hot = np.zeros((size, msl, n))
+            # for i, j in enumerate(pos):
+            #     for ind, elem in enumerate(j):
+            #         one_hot[i][ind][elem] = 1
+            # ohe = torch.from_numpy(one_hot).float()
+            # if self.args.cuda:
+            #     ohe = ohe.cuda()
+            # var = torch.autograd.Variable(ohe, pos=None, requires_grad=False)
+            # var = pos  # TODO
+            # Need to do this because pytorch messes with current.size()[1]
+            var = pos[:, :current.size()[1], :]
+            if self.args.cuda:
+                var = var.cuda()
             current = torch.cat((current, var), dim=2)
+        if self.args.cuda:
+            current = current.cuda()
         # CNN
         if hasattr(self, 'cnn_layer'):
-            current = self.cnn_layer(current.cuda(), mask=mask)
+            current = self.cnn_layer(current, mask=mask)
         # RNN
         if hasattr(self, 'rnn_layer'):
             seq_lengths = lens.data.cpu().numpy()
             current = pack_padded_sequence(current,
                                            seq_lengths,
                                            batch_first=True)
+            self.rnn_layer.flatten_parameters()
             current, _ = self.rnn_layer(current)  # (h0, c0)
             # current = temp[0]
             current, seq_lengths = pad_packed_sequence(current,
@@ -196,16 +239,54 @@ class Model(torch.nn.Module):
         # Dropout
         if hasattr(self, 'dropout_layer'):
             current = self.dropout_layer(current)
+        if self.args.cuda:
+            current = current.cuda()
         # Pooling
         if hasattr(self, 'pooling_layer'):
-            current = self.pooling_layer(current.cuda(), mask=mask, lens=lens, dim=1)
+            current = self.pooling_layer(current, mask=mask, lens=lens, dim=1)
         else:
             current = current[lens]
 
+        counts = []
+        current = self.linear(current)
+        #pdb.set_trace()
         if self.args.variety:
-            current = self._append_count(variety, current)
+            if self.args.cuda:
+                current += self.variety_linear(variety.cuda())
+            else:
+                current += self.variety_linear(variety.cpu())
         if self.args.punct:
-            current = self._append_count(punct, current)
-        current = self.linear(current.cuda())
-        current = self.sigmoid(current.cuda())
+            if self.args.cuda:
+                current += self.punct_linear(punct.cuda())
+            else:
+                current += self.punct_linear(punct.cpu())
+
+        current = self.sigmoid(current)
         return current
+class EnsembleModel(torch.nn.Module):
+    def __init__(self, models, _type="mean"):
+        super(EnsembleModel, self).__init__()
+        models = [torch.load(model, map_location=lambda storage, location: storage) for model in models]
+        # Move stuff to CPU and out of DataParallel.
+        for i in range(len(models)):
+            if type(models[i]) is torch.nn.DataParallel:
+                models[i] = models[i].module
+            models[i].cpu()
+
+        self.models = torch.nn.ModuleList(models)
+        self.voting_strategy = _type
+        if _type == 'supervisor':
+            if len(models) != 3:
+                raise RuntimeError('Must be a supervisor with 3')
+    def forward(self, x, *args, **kwargs):
+        predictions = [model(x, *args, **kwargs) for model in self.models]
+        concat_preds = torch.cat(predictions, dim=1)
+        if self.voting_strategy == "mean":
+            return concat_preds.mean(dim=1)
+        elif self.voting_strategy == "median":
+            return torch.median(concat_preds, dim=1)
+        elif self.voting_strategy == 'supervisor':
+            sign = torch.sign(torch.abs(predictions[1] - predictions[0]))
+            return predictions[2] * sign + 0.5*(predictions[0] + predictions[1])*(1 - sign)
+        else:
+            raise Exception("Invalid voting strategy")

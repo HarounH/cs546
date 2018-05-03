@@ -195,7 +195,7 @@ def get_optimizer(args, parameters):
 
     if args.algorithm == 'rmsprop':
         # opt.RMSprop(lr=0.001, rho=0.9, epsilon=1e-06, clipnorm=clipnorm, clipvalue=clipvalue)
-        optimizer = optim.RMSprop(parameters, lr=0.001, eps=1e-06)
+        optimizer = optim.RMSprop(parameters, lr=0.001, eps=1e-06, alpha=0.9)
     elif args.algorithm == 'sgd':
         # opt.SGD(lr=0.01, momentum=0.0, decay=0.0, nesterov=False, clipnorm=clipnorm, clipvalue=clipvalue)
         optimizer = optim.SGD(parameters, lr=0.01)

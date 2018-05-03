@@ -28,6 +28,9 @@ from torch.distributions import Bernoulli
 import operator
 from collections import defaultdict
 
+from nltk.tag.perceptron import PerceptronTagger
+tagger = PerceptronTagger()
+
 POS_DICT = defaultdict(lambda: 0)
 
 POS = [     "CC",     "CD",     "DT",     "EX",     "FW",     "IN",     "JJ",     "JJR",     "JJS",     "LS",     "MD",     "NN",     "NNP",     "NNPS",     "NNS",     "PDT",     "POS",     "PRP",     "PRP$",     "RB",     "RBR",     "RBS",     "RP",     "SYM",     "TO",     "UH",     "VB",     "VBD",     "VBG",     "VBN",     "VBP",     "VBZ",     "WDT",     "WP",     "WP$",     "WRB" ]
@@ -81,8 +84,10 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         8: (0, 60)
     }
 
-    def __init__(self, tsv_file, vocab=None, read_vocab=False, vocab_file=None, prompt_id=-1, pos=False):
+
+    def __init__(self, tsv_file, maxlen=-1, vocab_size=-1, vocab=None, read_vocab=False, vocab_file=None, prompt_id=-1, pos=False):
         self.tsv_file = tsv_file
+        self.prompt_id = prompt_id  # Need this for evaluation.
         if vocab is None:
             if read_vocab is True:
                 logging.info('Loading vocab from ' + vocab_file)
@@ -90,7 +95,7 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                     self.vocab = pickle.load(f)
             else:
                 logger.info('Loading vocab from ' + tsv_file)
-                self.vocab = self.create_vocab_from_tsv(tsv_file, pos)
+                self.vocab = self.create_vocab_from_tsv(tsv_file, pos=pos, vocab_size=vocab_size, prompt_id=prompt_id)
                 if vocab_file is not None:
                     logging.info('Writing vocab to ' + vocab_file)
                     with open(vocab_file, 'wb') as f:
@@ -100,9 +105,11 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         self.unique_x = []
         self.tags_x = []
         self.punct_x = []
-        self.ids, self.x, self.y, self.prompts, self.maxlen = \
-            self.read_tsv(tsv_file, self.vocab, prompt_id=prompt_id, pos=pos)
 
+        self.ids, self.x, self.y, self.prompts, self.maxlen = \
+            self.read_tsv(tsv_file, self.vocab, maxlen=maxlen, prompt_id=prompt_id, pos=pos)
+
+        self.prepare_features(pos)
     def __len__(self):
         # Number of essays
         return len(self.x)
@@ -110,35 +117,36 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.x[idx], self.y[idx], self.prompts[idx]
 
-    def tokenize(self, string, pos):
+    def tokenize(self, string, pos=False):
         tokens = nltk.word_tokenize(string)
         for index, token in enumerate(tokens):
             if token == '@' and (index+1) < len(tokens):
                 tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
                 tokens.pop(index)
         return tokens
-    def _tokenize(self, text, pos):
+
+    def _tokenize(self, text, pos=False):
         sentences = nltk.sent_tokenize(text)
         ret = list()
         part_of_speech = list()
         for sentence in sentences:
             tokens = nltk.word_tokenize(sentence)
             if pos:
-                tagged = list(map(lambda x: x[-1], nltk.pos_tag(tokens)))
+                tagged = list(map(lambda x: x[-1], tagger.tag(tokens)))
             for index, token in enumerate(tokens):
                 if token == '@' and (index+1) < len(tokens):
-                    tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1][0])
+                    tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
                     tokens.pop(index)
                     if pos:
                         tagged.pop(index)
-                ret.extend(tokens)
+            ret.extend(tokens)
             if pos:
                 part_of_speech.extend(tagged)
         if pos:
-             return ret, part_of_speech
-        return ret
+            return ret, part_of_speech
+        return ret, None
 
-    def create_vocab_from_tsv(self, tsv_file, vocab_size=-1, maxlen=-1, prompt_id=-1, to_lower=True, tokenize_not_split=True):
+    def create_vocab_from_tsv(self, tsv_file, pos=False, vocab_size=-1, maxlen=-1, prompt_id=-1, to_lower=True, tokenize_not_split=True):
         '''
             Reads a tsv_file and constructs a vocabulary (dictionary)
             from that.
@@ -165,7 +173,9 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                     if to_lower:
                         content = content.lower()
                     if tokenize_not_split:
-                        content = self.tokenize(content, False)
+                        # Don't need POS to build vocab
+                        content = self.tokenize(content)  # NOT _tokenize.
+                        # pdb.set_trace()
                     else:
                         content = content.split()
                     if maxlen > 0 and len(content) > maxlen:
@@ -192,9 +202,14 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         vocab = {'<pad>': 0, '<unk>': 1, '<num>': 2}
         vcb_len = len(vocab)
         index = vcb_len
-        for word, _ in sorted_word_freqs[:vocab_size - vcb_len]:
-            vocab[word] = index
-            index += 1
+        # pdb.set_trace()
+        for freq_rank, (word, freq) in enumerate(sorted_word_freqs):
+            if freq_rank < vocab_size - vcb_len:
+                vocab[word] = index
+                index += 1
+            else:
+                vocab.pop(word, None)  # Bye bye word
+        # pdb.set_trace()
         return vocab
 
     def read_tsv(self, tsv_file, vocab, char_level=False, tokenize_not_split=True, to_lower=False, maxlen=-1, prompt_id=-1, score_index=6, pos=False):
@@ -217,19 +232,23 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                 content = str(tokens[2])
                 score = float(tokens[score_index])
                 indices = []
+                #if not(essay_id == 1139 or  essay_id==1509 or essay_id==1680):
+                #    continue
+                #else:
+                #    pdb.set_trace()
                 if essay_set == prompt_id or prompt_id < 0:
                     if to_lower:
                         content = content.lower()
                     if char_level:
                         raise NotImplementedError  # TODO
                     else:
-                        data = self.tokenize(content, pos)
+                        data = self._tokenize(content, pos)  # Changed from tokenize -> _tokenize
                         if pos:
                             content, tags = data
                             tag_encoded = [POS_DICT[i] for i in tags]
-                            self.tags_x.append(tag_encoded)
+
                         else:
-                            content = data
+                            content, _ = data
                         for word in content:
                             if is_number(word):
                                 indices.append(vocab['<num>'])
@@ -240,13 +259,22 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
                                 indices.append(vocab['<unk>'])
                                 unk_hit += 1
                             total += 1
+                        # print(maxlen)
+                        if len(indices) > maxlen and maxlen > 0:
+                            # print('Filtering')
+                            continue
+                        if pos:
+                            self.tags_x.append(tag_encoded)
                         data_ids.append(essay_id)
                         data_x.append(indices)
                         self.unique_x.append(len(set(indices)) / len(indices))
                         self.punct_x.append(len([1 for i in content if i in PUNCTS]))
                         data_y.append(score)
                         prompt_ids.append(essay_set)
+                        if len(indices) > maxlen_x:
+                            self.maxlen_x_id = essay_id
                         maxlen_x = max(maxlen_x, len(indices))
+        self.maxlen_x = maxlen_x  # Gotta remember.
         self.unique_x = np.array(self.unique_x)
         self.tags_x = np.array(self.tags_x)
         self.punct_x = np.array(self.punct_x)
@@ -262,6 +290,29 @@ class ASAPDataset:  # (torch.utils.data.Dataset):
         for i in range(len(self.y)):
             low, high = self.asap_ranges[self.prompts[i]]
             self.y[i] = low + (high - low) * self.y[i]
+
+    def prepare_features(self, pos=False):
+        '''
+            Function messes around with how dataset represents
+            classical features such as unique_x, punct_x, tags_x
+            At the end of the function, all of these need to be FloatTensors
+        '''
+        if len(self.punct_x) > 0:
+            self.punct_x = torch.autograd.Variable(torch.from_numpy(self.punct_x).float().unsqueeze(1), requires_grad=False)
+        if len(self.unique_x) > 0:
+            self.unique_x = torch.autograd.Variable(torch.from_numpy(self.unique_x).float().unsqueeze(1), requires_grad=False)
+        if pos:
+            n_pos_dim = pos_dim()
+            txo = self.tags_x  # Temporary variable.
+            self.tags_x = np.zeros((len(self.tags_x), self.maxlen_x, n_pos_dim))
+            for i in range(len(txo)):
+                for j in range(len(txo[i])):
+                    k = txo[i][j]
+                    self.tags_x[i, j, k] = 1
+            self.tags_x = torch.autograd.Variable(
+                torch.from_numpy(self.tags_x).float(),
+                requires_grad=False
+                )
 
 
 class ASAPDataLoader:

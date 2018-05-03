@@ -7,6 +7,8 @@ __mail__ = 'haroun7@gmail.com'
 
 import logging
 import numpy as np
+import pdb
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ class EmbeddingReader:
         logger.info('Loading embeddings from: ' + emb_path)
         has_header = False
         with open(emb_path, 'r', encoding='utf8') as emb_file:
-            tokens = emb_file.next().split()
+            tokens = emb_file.readline().split()
             if len(tokens) == 2:
                 try:
                     int(tokens[0])
@@ -26,7 +28,7 @@ class EmbeddingReader:
                     pass
         if has_header:
             with open(emb_path, 'r', encoding='utf8') as emb_file:
-                tokens = emb_file.next().split()
+                tokens = emb_file.readline().split()
                 assert len(tokens) == 2, 'The first line in W2V embeddings must be the pair (vocab_size, emb_dim)'
                 self.vocab_size = int(tokens[0])
                 self.emb_dim = int(tokens[1])
@@ -69,9 +71,11 @@ class EmbeddingReader:
 
     def get_emb_matrix_given_vocab(self, vocab, emb_matrix):
         counter = 0.
-        for word, index in vocab.iteritems():
+        for word, index in vocab.items():
             try:
-                emb_matrix[0][index] = self.embeddings[word]
+                # pdb.set_trace()
+                self.embeddings[word]
+                emb_matrix[index].data = torch.FloatTensor([float(i) for i in self.embeddings[word]])
                 counter += 1
             except KeyError:
                 pass
